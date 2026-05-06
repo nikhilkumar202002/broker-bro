@@ -2,10 +2,10 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import Login from '../features/auth/Login';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Dashboard from '../pages/dashboard/Dashboard';
+import PropertiesList from '../pages/properties/PropertiesList';
 
 // Temporary dummy component to test the layout
 const DashboardHome = () => <Dashboard />;
-const PropertiesList = () => <h2 className="text-2xl font-semibold text-gray-800">Properties CRUD Area</h2>;
 
 const router = createBrowserRouter([
   {
@@ -26,7 +26,7 @@ const router = createBrowserRouter([
       },
       {
         path: '/properties',
-        element: <PropertiesList />, // We will build the actual CRUD table here next
+        element: <PropertiesList />,
       },
       // You can add /properties/create and /properties/:id here later
     ]
