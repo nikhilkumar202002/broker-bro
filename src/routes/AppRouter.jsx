@@ -1,23 +1,35 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import Login from '../features/auth/Login';
-// import Home from '../pages/Home'; // Uncomment when you create your Home/Dashboard page
+import DashboardLayout from '../components/layout/DashboardLayout';
+
+// Temporary dummy component to test the layout
+const DashboardHome = () => <h2 className="text-2xl font-semibold text-gray-800">Dashboard Overview</h2>;
+const PropertiesList = () => <h2 className="text-2xl font-semibold text-gray-800">Properties CRUD Area</h2>;
 
 const router = createBrowserRouter([
   {
-    // 1. When the user visits the base URL (localhost:5173/)
     path: '/',
-    // 2. Automatically redirect them to the /login route
     element: <Navigate to="/login" replace />, 
   },
   {
-    // 3. The Login route loads your Login component
     path: '/login',
     element: <Login />,
   },
-  // {
-  //   path: '/dashboard',
-  //   element: <Home />,
-  // }
+  {
+    // Every route inside this block will have the Sidebar and Header!
+    element: <DashboardLayout />,
+    children: [
+      {
+        path: '/dashboard',
+        element: <DashboardHome />,
+      },
+      {
+        path: '/properties',
+        element: <PropertiesList />, // We will build the actual CRUD table here next
+      },
+      // You can add /properties/create and /properties/:id here later
+    ]
+  }
 ]);
 
 export default function AppRouter() {
