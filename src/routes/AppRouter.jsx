@@ -1,9 +1,10 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import Login from '../features/auth/Login';
 import DashboardLayout from '../components/layout/DashboardLayout';
+import Dashboard from '../pages/dashboard/Dashboard';
 
 // Temporary dummy component to test the layout
-const DashboardHome = () => <h2 className="text-2xl font-semibold text-gray-800">Dashboard Overview</h2>;
+const DashboardHome = () => <Dashboard />;
 const PropertiesList = () => <h2 className="text-2xl font-semibold text-gray-800">Properties CRUD Area</h2>;
 
 const router = createBrowserRouter([

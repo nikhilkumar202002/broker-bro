@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Login() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -17,7 +19,7 @@ export default function Login() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (formData.email === 'admin' && formData.password === 'password') {
-      console.log('Login successful');
+      navigate('/dashboard');
     } else {
       alert('Invalid credentials. Use admin / password.');
     }
