@@ -27,10 +27,29 @@ export default function Login() {
     setLoading(true);
     try {
       const response = await login({ email: formData.email, password: formData.password });
-      const token = response.data?.token || response.data?.access_token;
+      
+      // Debug: log full response to see token structure
+      console.debug('[Login] Full response:', response);
+      console.debug('[Login] response.data:', response.data);
+      
+      // Try multiple possible token field names
+      const token = response.data?.token 
+        || response.data?.access_token 
+        || response.data?.data?.token
+        || response.data?.data?.access_token;
+      
+      console.debug('[Login] Token found:', token ? `${token.substring(0, 20)}...` : 'NOT FOUND');
+      
       if (token) {
         localStorage.setItem('token', token);
+        console.debug('[Login] Token stored in localStorage');
+        console.debug('[Login] Verifying token in localStorage:', localStorage.getItem('token') ? 'SUCCESS' : 'FAILED');
+      } else {
+        console.error('[Login] Token not found in response!');
+        setError('Login failed: No token received from server');
+        return;
       }
+      
       toast.success('Welcome back! Redirecting...');
       navigate('/dashboard');
     } catch (err) {

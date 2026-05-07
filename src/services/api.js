@@ -10,17 +10,27 @@ const api = axios.create({
 
 // Attach token to every request if present
 api.interceptors.request.use((config) => {
- const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token');
+  console.debug('[interceptor] Request to:', config.url, 'Method:', config.method, 'Token exists:', !!token);
+  
   if (token) {
+    // Ensure headers object exists
+    if (!config.headers) {
+      config.headers = {};
+    }
     config.headers.Authorization = `Bearer ${token}`;
+    console.debug('[interceptor] Set Authorization header');
+  } else {
+    console.warn('[interceptor] No token found in localStorage!');
   }
+  
   // Dev-only debug: log auth header for category create/update requests
   try {
     if (process.env.NODE_ENV !== 'production') {
       const isCategoryEndpoint = /\/categories(\/|$)/.test(config.url || '');
       if (isCategoryEndpoint && ['post', 'put'].includes((config.method || '').toLowerCase())) {
         // eslint-disable-next-line no-console
-        console.debug('[api] Sending category request', config.method, config.url, 'Auth:', config.headers?.Authorization);
+        console.debug('[api] Sending category request', config.method, config.url, 'Auth:', config.headers?.Authorization ? 'YES' : 'NO');
       }
     }
   } catch (e) {
@@ -32,27 +42,21 @@ api.interceptors.request.use((config) => {
 // 2. Add Response Interceptor for Global Error Handling
 api.interceptors.response.use(
   (response) => {
-    // Any status code that lies within the range of 2xx causes this function to trigger.
     return response;
   },
   (error) => {
-    // Any status codes that falls outside the range of 2xx causes this function to trigger.
-    
-    // Extract the error message from your specific API structure, with a safe fallback
     const errorMessage = 
       error.response?.data?.message || 
       error.response?.data?.error || 
       'Something went wrong. Please try again.';
-
-    // Show the error toast globally
     toast.error(errorMessage);
 
-    // Optional: Automatically log the user out if their token expires (401 Unauthorized)
     if (error.response?.status === 401) {
-      // Dev-only: log error details for category endpoints to help debugging
       try {
         if (process.env.NODE_ENV !== 'production') {
           const url = error.config?.url ?? '';
+          // eslint-disable-next-line no-console
+          console.error('[api] 401 Unauthorized:', url, error.response?.data);
           if (/\/categories(\/|$)/.test(url)) {
             // eslint-disable-next-line no-console
             console.debug('[api] Category request failed with 401:', url, error.response?.data);
@@ -60,11 +64,8 @@ api.interceptors.response.use(
         }
       } catch (e) {}
 
-      localStorage.removeItem('token');
-      window.location.href = '/login'; 
     }
 
-    // Reject the promise so the component calling the API knows it failed
     return Promise.reject(error);
   }
 );
@@ -88,6 +89,9 @@ export const logout = () =>
 
 // Categories
 export const createCategory = (data) => {
+  const token = localStorage.getItem('token');
+  console.debug('[createCategory] Token from localStorage:', token ? `${token.substring(0, 20)}...` : 'NOT FOUND');
+  
   // If an image file is provided, send as multipart/form-data
   if (data?.image instanceof File || data?.image instanceof Blob) {
     const form = new FormData();
@@ -95,24 +99,33 @@ export const createCategory = (data) => {
     form.append('description', data.description ?? '');
     if (typeof data.status !== 'undefined') form.append('status', String(data.status));
     form.append('image', data.image);
-    // Let the browser/axios set the Content-Type (including boundary)
+    
+    console.debug('[createCategory] Sending FormData with image, token:', token ? 'present' : 'missing');
+    // Rely on request interceptor to add Authorization header
     return api.post('/categories', form);
   }
 
+  console.debug('[createCategory] Sending JSON data, token:', token ? 'present' : 'missing');
   return api.post('/categories', data);
 };
 
 export const updateCategory = (id, data) => {
+  const token = localStorage.getItem('token');
+  console.debug('[updateCategory] Token from localStorage:', token ? `${token.substring(0, 20)}...` : 'NOT FOUND');
+  
   if (data?.image instanceof File || data?.image instanceof Blob) {
     const form = new FormData();
     if (typeof data.name !== 'undefined') form.append('name', data.name);
     if (typeof data.description !== 'undefined') form.append('description', data.description);
     if (typeof data.status !== 'undefined') form.append('status', String(data.status));
     form.append('image', data.image);
-    // Let the browser/axios set the Content-Type (including boundary)
+    
+    console.debug('[updateCategory] Sending FormData with image, token:', token ? 'present' : 'missing');
+    // Rely on request interceptor to add Authorization header
     return api.put(`/categories/${id}`, form);
   }
 
+  console.debug('[updateCategory] Sending JSON data, token:', token ? 'present' : 'missing');
   return api.put(`/categories/${id}`, data);
 };
 // List / Get Categories (supports query params for admin view)

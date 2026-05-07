@@ -43,6 +43,14 @@ export default function CategoryForm({ onSuccess, onClose, initialData }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    // Debug: check if token exists
+    const token = localStorage.getItem('token');
+    console.debug('[CategoryForm] Submitting:', { 
+      isEditing, 
+      hasToken: !!token, 
+      formData: { ...formData, image: formData.image ? `File: ${formData.image.name}` : null }
+    });
+
     // Check if we are updating (initialData exists) or creating
     const apiPromise = initialData 
       ? updateCategory(initialData.id, formData)
@@ -51,12 +59,18 @@ export default function CategoryForm({ onSuccess, onClose, initialData }) {
     toast.promise(apiPromise, {
       loading: initialData ? 'Updating category...' : 'Saving category...',
       success: (res) => {
+        console.debug('[CategoryForm] Success:', res);
         if (onSuccess) onSuccess(res);
         else navigate('/categories');
         return initialData ? 'Category updated successfully!' : 'Category created successfully!';
       },
-      error: null, // Let global interceptor handle errors
-    }).catch(() => {});
+      error: (err) => {
+        console.error('[CategoryForm] Error:', err);
+        return null;
+      },
+    }).catch((err) => {
+      console.error('[CategoryForm] Caught error:', err);
+    });
   };
 
   const isEditing = Boolean(initialData);

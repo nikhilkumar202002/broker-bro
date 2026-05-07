@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { getCategories, deleteCategory } from '../../services/api';
+import { getCategories, deleteCategory, activateCategory, deactivateCategory } from '../../services/api';
 import CategoryForm from '../../features/properties/components/CategoryForm';
 
 export default function CategoryList() {
@@ -26,8 +26,28 @@ export default function CategoryList() {
     }
   };
 
+  // Background refresh without loader
+  const backgroundRefreshCategories = async () => {
+    try {
+      const res = await getCategories();
+      const outer = res?.data ?? res;
+      const payload = outer?.data ?? outer;
+      const items = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
+      setCategories(items);
+    } catch (error) {
+      // Silent error handling - don't show loader
+    }
+  };
+
   useEffect(() => {
     fetchCategories();
+    
+    // Set up auto-refresh every 5 seconds
+    const interval = setInterval(() => {
+      backgroundRefreshCategories();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const openCreate = () => {
@@ -60,6 +80,29 @@ export default function CategoryList() {
         error: null, 
       }).catch(() => {});
     }
+  };
+
+  const handleToggleStatus = (category) => {
+    const isCurrentlyActive = category.status === true || category.status === 1;
+    const togglePromise = isCurrentlyActive 
+      ? deactivateCategory(category.id)
+      : activateCategory(category.id);
+
+    toast.promise(togglePromise, {
+      loading: isCurrentlyActive ? 'Deactivating...' : 'Activating...',
+      success: () => {
+        // Update the category in state
+        setCategories((prev) =>
+          prev.map((c) =>
+            c.id === category.id
+              ? { ...c, status: isCurrentlyActive ? 0 : 1 }
+              : c
+          )
+        );
+        return isCurrentlyActive ? 'Category deactivated!' : 'Category activated!';
+      },
+      error: null,
+    }).catch(() => {});
   };
 
   return (
@@ -139,7 +182,7 @@ export default function CategoryList() {
                         <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center text-xs text-gray-400">N/A</div>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                    <td className="px-6 py-4 text-sm text-gray-500 break-words">
                       {category.description}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
@@ -151,13 +194,17 @@ export default function CategoryList() {
                         const isActive = s === 1 || s === '1' || s === true || String(s).toLowerCase() === 'active';
                         const statusLabel = isActive ? 'Active' : 'Inactive';
                         const statusClass = isActive
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-gray-50 text-gray-700 border-gray-200';
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100';
 
                         return (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusClass}`}>
+                          <button
+                            onClick={() => handleToggleStatus(category)}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors cursor-pointer ${statusClass}`}
+                            title={`Click to ${isActive ? 'deactivate' : 'activate'}`}
+                          >
                             {statusLabel}
-                          </span>
+                          </button>
                         );
                       })()}
                     </td>
