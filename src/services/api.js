@@ -134,4 +134,49 @@ export const deleteCategory = (id) => api.delete(`/categories/${id}`);
 export const activateCategory = (id) => api.put(`/categories/${id}/activate`);
 export const deactivateCategory = (id) => api.put(`/categories/${id}/deactivate`);
 
+// Property Types
+export const createPropertyType = (data) => {
+  const token = localStorage.getItem('token');
+  console.debug('[createPropertyType] Token from localStorage:', token ? `${token.substring(0, 20)}...` : 'NOT FOUND');
+  
+  // If an image file is provided, send as multipart/form-data
+  if (data?.image instanceof File || data?.image instanceof Blob) {
+    const form = new FormData();
+    form.append('name', data.name ?? '');
+    form.append('description', data.description ?? '');
+    if (typeof data.status !== 'undefined') form.append('status', String(data.status));
+    form.append('image', data.image);
+    
+    console.debug('[createPropertyType] Sending FormData with image, token:', token ? 'present' : 'missing');
+    return api.post('/property-types', form);
+  }
+
+  console.debug('[createPropertyType] Sending JSON data, token:', token ? 'present' : 'missing');
+  return api.post('/property-types', data);
+};
+
+export const updatePropertyType = (id, data) => {
+  const token = localStorage.getItem('token');
+  console.debug('[updatePropertyType] Token from localStorage:', token ? `${token.substring(0, 20)}...` : 'NOT FOUND');
+  
+  if (data?.image instanceof File || data?.image instanceof Blob) {
+    const form = new FormData();
+    if (typeof data.name !== 'undefined') form.append('name', data.name);
+    if (typeof data.description !== 'undefined') form.append('description', data.description);
+    if (typeof data.status !== 'undefined') form.append('status', String(data.status));
+    form.append('image', data.image);
+    
+    console.debug('[updatePropertyType] Sending FormData with image, token:', token ? 'present' : 'missing');
+    return api.put(`/property-types/${id}`, form);
+  }
+
+  console.debug('[updatePropertyType] Sending JSON data, token:', token ? 'present' : 'missing');
+  return api.put(`/property-types/${id}`, data);
+};
+
+export const getPropertyTypes = (params) => api.get('/property-types', { params });
+export const deletePropertyType = (id) => api.delete(`/property-types/${id}`);
+export const activatePropertyType = (id) => api.put(`/property-types/${id}/activate`);
+export const deactivatePropertyType = (id) => api.put(`/property-types/${id}/deactivate`);
+
 export default api;

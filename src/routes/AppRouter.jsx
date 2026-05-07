@@ -4,6 +4,7 @@ import DashboardLayout from '../components/layout/DashboardLayout';
 import Dashboard from '../pages/dashboard/Dashboard';
 import PropertiesList from '../pages/properties/PropertiesList';
 import CategoryList from '../pages/categories/CategoryList';
+import PropertyList from '../pages/types/PropertyList';
 
 
 const DashboardHome = () => <Dashboard />;
@@ -28,7 +29,8 @@ const router = createBrowserRouter([
         path: '/properties',
         element: <PropertiesList />,
       },
-      { path: '/categories', element: <CategoryList /> },
+      { path: '/categories/property-type', element: <PropertyList /> },
+      { path: '/categories/property-category', element: <CategoryList /> },
     ]
   }
 ]);
