@@ -91,6 +91,8 @@ export const updateCategory = (id, data) => {
 
   return api.put(`/categories/${id}`, data);
 };
+// List / Get Categories (supports query params for admin view)
+export const getCategories = (params) => api.get('/categories', { params });
 export const deleteCategory = (id) => api.delete(`/categories/${id}`);
 export const activateCategory = (id) => api.put(`/categories/${id}/activate`);
 export const deactivateCategory = (id) => api.put(`/categories/${id}/deactivate`);

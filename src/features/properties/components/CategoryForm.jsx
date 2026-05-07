@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import api from '../../services/api';
+import { createCategory } from '../../services/api';
 
 export default function CategoryForm() {
   const navigate = useNavigate();
@@ -9,20 +9,31 @@ export default function CategoryForm() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    status: 'Active',
+    // use numeric status (1 active, 0 inactive) to match API
+    status: 1,
+    image: null,
   });
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, files } = e.target;
+    if (type === 'file') {
+      setFormData((prev) => ({ ...prev, [name]: files[0] }));
+      return;
+    }
+
+    // ensure status is numeric
+    if (name === 'status') {
+      setFormData((prev) => ({ ...prev, [name]: Number(value) }));
+      return;
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // The toast.promise handles loading state, success message, and lets
-    // our global api.js interceptor handle the error message!
-    const createPromise = api.post('/categories', formData);
+    const createPromise = createCategory(formData);
 
     toast.promise(createPromise, {
       loading: 'Saving category...',
@@ -30,7 +41,7 @@ export default function CategoryForm() {
         navigate('/categories');
         return 'Category created successfully!';
       },
-      error: null, 
+      error: null,
     }).catch(() => {}); // Catch to prevent console errors on failure
   };
 
@@ -85,10 +96,24 @@ export default function CategoryForm() {
               onChange={handleChange}
               className="mt-1 block w-full rounded-lg border-gray-300 border px-3 py-2 text-gray-900 bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
             >
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              <option value={1}>Active</option>
+              <option value={0}>Inactive</option>
             </select>
             <p className="mt-2 text-xs text-gray-500">Inactive categories will not appear as options when adding new properties.</p>
+          </div>
+
+          {/* Image */}
+          <div>
+            <label htmlFor="image" className="block text-sm font-medium text-gray-700">Image</label>
+            <input
+              id="image"
+              name="image"
+              type="file"
+              accept="image/*"
+              onChange={handleChange}
+              className="mt-1 block w-full text-sm text-gray-900"
+            />
+            <p className="mt-2 text-xs text-gray-500">Optional: upload an image for this category.</p>
           </div>
 
         </div>
