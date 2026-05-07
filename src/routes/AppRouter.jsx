@@ -3,8 +3,9 @@ import Login from '../features/auth/Login';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Dashboard from '../pages/dashboard/Dashboard';
 import PropertiesList from '../pages/properties/PropertiesList';
+import CategoryList from '../pages/categories/CategoryList';
 
-// Temporary dummy component to test the layout
+
 const DashboardHome = () => <Dashboard />;
 
 const router = createBrowserRouter([
@@ -17,7 +18,6 @@ const router = createBrowserRouter([
     element: <Login />,
   },
   {
-    // Every route inside this block will have the Sidebar and Header!
     element: <DashboardLayout />,
     children: [
       {
@@ -28,7 +28,7 @@ const router = createBrowserRouter([
         path: '/properties',
         element: <PropertiesList />,
       },
-      // You can add /properties/create and /properties/:id here later
+      { path: '/categories', element: <CategoryList /> },
     ]
   }
 ]);
