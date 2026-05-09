@@ -179,6 +179,12 @@ export const deletePropertyType = (id) => api.delete(`/property-types/${id}`);
 export const activatePropertyType = (id) => api.put(`/property-types/${id}/activate`);
 export const deactivatePropertyType = (id) => api.put(`/property-types/${id}/deactivate`);
 
+// Properties
+export const getProperties = (params) => api.get('/properties', { params });
+export const getProperty = (id) => api.get(`/properties/${id}`);
+// Approve a property (move from draft to approved)
+export const approveProperty = (id) => api.put(`/properties/${id}/approve`);
+
 // Users - list by role (e.g. /users?role=seller)
 export const getUsers = (params) => api.get('/users', { params });
 export const getSellers = (params) => getUsers({ ...(params || {}), role: 'seller' });
