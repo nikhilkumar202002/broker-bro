@@ -179,4 +179,9 @@ export const deletePropertyType = (id) => api.delete(`/property-types/${id}`);
 export const activatePropertyType = (id) => api.put(`/property-types/${id}/activate`);
 export const deactivatePropertyType = (id) => api.put(`/property-types/${id}/deactivate`);
 
+// Users - list by role (e.g. /users?role=seller)
+export const getUsers = (params) => api.get('/users', { params });
+export const getSellers = (params) => getUsers({ ...(params || {}), role: 'seller' });
+export const getCustomers = (params) => getUsers({ ...(params || {}), role: 'customer' });
+
 export default api;
