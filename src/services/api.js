@@ -184,4 +184,8 @@ export const getUsers = (params) => api.get('/users', { params });
 export const getSellers = (params) => getUsers({ ...(params || {}), role: 'seller' });
 export const getCustomers = (params) => getUsers({ ...(params || {}), role: 'customer' });
 
+// Activate / Deactivate user
+export const activateUser = (id) => api.put(`/users/${id}/activate`);
+export const deactivateUser = (id) => api.put(`/users/${id}/deactivate`);
+
 export default api;

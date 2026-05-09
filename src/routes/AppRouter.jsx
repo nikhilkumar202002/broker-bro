@@ -7,6 +7,7 @@ import CategoryList from '../pages/categories/CategoryList';
 import PropertyList from '../pages/types/PropertyList';
 
 import Seller from '../pages/users/Sellers';
+import Customer from '../pages/users/Customers';
 
 
 const DashboardHome = () => <Dashboard />;
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: '/categories/property-type', element: <PropertyList /> },
       { path: '/categories/property-category', element: <CategoryList /> },
       { path: '/users/sellers', element: <Seller /> },
+      { path: '/users/customers', element: <Customer /> },
     ]
   }
 ]);

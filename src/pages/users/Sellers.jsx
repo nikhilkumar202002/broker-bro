@@ -1,25 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getSellers, activateUser, deactivateUser } from '../../services/api';
 
-// Simulated initial data from your API response structure
-const initialSellers = [
-  {
-    id: 3,
-    name: "Dileepan",
-    email: "dileepan@gmail.com",
-    mobile: "7894561230",
-    role: { name: "Seller", value: "seller" },
-    is_activated: false
-  },
-  // Add more mock data if needed for testing
-  {
-    id: 4,
-    name: "Jane Doe",
-    email: "jane@example.com",
-    mobile: "9876543210",
-    role: { name: "Seller", value: "seller" },
-    is_activated: true
-  }
-];
+// Initial empty list; will fetch from API
+const initialSellers = [];
 
 const statusStyles = {
   Active: 'bg-green-100 text-green-700',
@@ -29,6 +12,45 @@ const statusStyles = {
 export default function Sellers() {
   const [sellers, setSellers] = useState(initialSellers);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    getSellers()
+      .then((res) => {
+        if (!mounted) return;
+        const data = res?.data?.data ?? res?.data ?? [];
+        setSellers(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        console.error('Failed to load sellers', err);
+        if (!mounted) return;
+        setError('Failed to load sellers');
+      })
+      .finally(() => mounted && setLoading(false));
+    return () => { mounted = false; };
+  }, []);
+
+  const handleToggleActive = async (id, currentlyActive) => {
+    // mark row updating
+    setSellers((prev) => prev.map(s => s.id === id ? { ...s, updating: true } : s));
+    try {
+      if (currentlyActive) {
+        await deactivateUser(id);
+      } else {
+        await activateUser(id);
+      }
+
+      setSellers((prev) => prev.map(s => s.id === id ? { ...s, is_activated: !currentlyActive, updating: false } : s));
+    } catch (e) {
+      console.error('Toggle active failed', e);
+      setSellers((prev) => prev.map(s => s.id === id ? { ...s, updating: false } : s));
+      setError('Failed to update user status');
+    }
+  };
 
   // Filtering logic based on Name, Email, or Mobile
   const filteredSellers = sellers.filter((s) => {
@@ -55,14 +77,6 @@ export default function Sellers() {
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Sellers</h1>
           <p className="text-sm text-gray-500 mt-1">Manage and view all registered sellers in the system.</p>
         </div>
-        <button
-          className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Seller
-        </button>
       </div>
 
       {/* Filters */}
@@ -84,7 +98,7 @@ export default function Sellers() {
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
-                {['ID', 'Name', 'Email', 'Mobile', 'Role', 'Status', 'Actions'].map((h) => (
+                {['ID', 'Name', 'Email', 'Mobile', 'Role', 'Status', 'Active', 'Actions'].map((h) => (
                   <th
                     key={h}
                     className="px-5 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
@@ -95,9 +109,21 @@ export default function Sellers() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredSellers.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400">
+                    Loading sellers...
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-red-500">
+                    {error}
+                  </td>
+                </tr>
+              ) : filteredSellers.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400">
                     No sellers found.
                   </td>
                 </tr>
@@ -117,6 +143,15 @@ export default function Sellers() {
                       <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${seller.is_activated ? statusStyles.Active : statusStyles.Inactive}`}>
                         {seller.is_activated ? 'Active' : 'Inactive'}
                       </span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <button
+                        onClick={() => handleToggleActive(seller.id, !!seller.is_activated)}
+                        disabled={seller.updating}
+                        className={`px-3 py-1 text-sm rounded-lg font-medium ${seller.updating ? 'opacity-50 cursor-wait' : seller.is_activated ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}
+                      >
+                        {seller.updating ? 'Saving...' : (seller.is_activated ? 'Deactivate' : 'Activate')}
+                      </button>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
