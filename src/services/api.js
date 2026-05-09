@@ -182,10 +182,14 @@ export const deactivatePropertyType = (id) => api.put(`/property-types/${id}/dea
 // Users - list by role (e.g. /users?role=seller)
 export const getUsers = (params) => api.get('/users', { params });
 export const getSellers = (params) => getUsers({ ...(params || {}), role: 'seller' });
-export const getCustomers = (params) => getUsers({ ...(params || {}), role: 'customer' });
+export const getCustomers = (params) => getUsers({ ...(params || {}), role: 'user' });
 
 // Activate / Deactivate user
 export const activateUser = (id) => api.put(`/users/${id}/activate`);
 export const deactivateUser = (id) => api.put(`/users/${id}/deactivate`);
+
+// Helpers to fetch sellers filtered by activation status
+export const getActiveSellers = (params) => getUsers({ ...(params || {}), role: 'seller', is_activated: 1 });
+export const getInactiveSellers = (params) => getUsers({ ...(params || {}), role: 'seller', is_activated: 0 });
 
 export default api;

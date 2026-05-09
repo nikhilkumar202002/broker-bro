@@ -14,24 +14,63 @@ export default function Sellers() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [meta, setMeta] = useState(null);
+  const [links, setLinks] = useState(null);
 
-  useEffect(() => {
+  const fetchSellers = async (page = 1) => {
     let mounted = true;
     setLoading(true);
     setError(null);
-    getSellers()
-      .then((res) => {
-        if (!mounted) return;
-        const data = res?.data?.data ?? res?.data ?? [];
-        setSellers(Array.isArray(data) ? data : []);
-      })
-      .catch((err) => {
-        console.error('Failed to load sellers', err);
-        if (!mounted) return;
-        setError('Failed to load sellers');
-      })
-      .finally(() => mounted && setLoading(false));
+    try {
+      const res = await getSellers({ page });
+      if (!mounted) return;
+
+      // Normalize response shapes:
+      // 1) { data: { data: [...], meta: {...}, links: {...} } }
+      // 2) { data: [...] }
+      // 3) [...] or other
+      const root = res?.data;
+      let items = [];
+      if (root && root.data && Array.isArray(root.data.data)) {
+        items = root.data.data;
+        setMeta(root.data.meta || null);
+        setLinks(root.data.links || null);
+      } else if (root && Array.isArray(root.data)) {
+        items = root.data;
+        setMeta(null);
+        setLinks(null);
+      } else if (Array.isArray(root)) {
+        items = root;
+        setMeta(null);
+        setLinks(null);
+      } else if (root && Array.isArray(root.data?.data)) {
+        items = root.data.data;
+        setMeta(root.data.meta || null);
+        setLinks(root.data.links || null);
+      } else {
+        // fallback: try common nested path
+        items = root?.data ?? [];
+        if (Array.isArray(items)) {
+          setMeta(null);
+          setLinks(null);
+        } else {
+          items = [];
+        }
+      }
+
+      setSellers(items);
+    } catch (err) {
+      console.error('Failed to load sellers', err);
+      setError('Failed to load sellers');
+    } finally {
+      if (mounted) setLoading(false);
+    }
     return () => { mounted = false; };
+  };
+
+  useEffect(() => {
+    fetchSellers(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleToggleActive = async (id, currentlyActive) => {
@@ -173,6 +212,28 @@ export default function Sellers() {
           </table>
         </div>
       </div>
+      {/* Pagination controls */}
+      {meta && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-gray-600">Page {meta.current_page} of {meta.last_page} — {meta.total} total</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchSellers(meta.current_page - 1)}
+              disabled={!meta.prev}
+              className="px-3 py-1 text-sm rounded bg-gray-100 disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <button
+              onClick={() => fetchSellers(meta.current_page + 1)}
+              disabled={!meta.next}
+              className="px-3 py-1 text-sm rounded bg-gray-100 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,24 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getCustomers } from '../../services/api';
 
-// Simulated initial data for Customers (mocked API response)
-const initialCustomers = [
-  {
-    id: 101,
-    name: "Alice Smith",
-    email: "alice@example.com",
-    mobile: "7012345678",
-    role: { name: "Customer", value: "customer" },
-    is_activated: true
-  },
-  {
-    id: 102,
-    name: "Bob Johnson",
-    email: "bob.j@example.com",
-    mobile: "7098765432",
-    role: { name: "Customer", value: "customer" },
-    is_activated: false
-  }
-];
+// start with empty list; data will be fetched from API
+const initialCustomers = [];
 const statusStyles = {
   Active: 'bg-green-100 text-green-700',
   Inactive: 'bg-gray-100 text-gray-500',
@@ -27,6 +11,50 @@ const statusStyles = {
 export default function Customers() {
   const [customers, setCustomers] = useState(initialCustomers);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [meta, setMeta] = useState(null);
+  const [links, setLinks] = useState(null);
+
+  const fetchCustomers = async (page = 1) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getCustomers({ page });
+      const root = res?.data;
+      let items = [];
+      if (root && root.data && Array.isArray(root.data.data)) {
+        items = root.data.data;
+        setMeta(root.data.meta || null);
+        setLinks(root.data.links || null);
+      } else if (root && Array.isArray(root.data)) {
+        items = root.data;
+        setMeta(null);
+        setLinks(null);
+      } else if (Array.isArray(root)) {
+        items = root;
+        setMeta(null);
+        setLinks(null);
+      } else {
+        items = root?.data ?? [];
+        if (!Array.isArray(items)) items = [];
+      }
+
+      setCustomers(items);
+    } catch (e) {
+      console.error('Failed to load customers', e);
+      setError('Failed to load customers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomers(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  
 
   // Filtering logic based on Name, Email, or Mobile
   const filteredCustomers = customers.filter((c) => {
@@ -85,11 +113,17 @@ export default function Customers() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredCustomers.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">
-                    No customers found.
-                  </td>
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">Loading customers...</td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-red-500">{error}</td>
+                </tr>
+              ) : filteredCustomers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">No customers found.</td>
                 </tr>
               ) : (
                 filteredCustomers.map((customer) => (
@@ -108,6 +142,7 @@ export default function Customers() {
                         {customer.is_activated ? 'Active' : 'Inactive'}
                       </span>
                     </td>
+                    
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <button className="text-sm text-blue-600 hover:underline">
@@ -128,6 +163,28 @@ export default function Customers() {
           </table>
         </div>
       </div>
+      {/* Pagination controls */}
+      {meta && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-gray-600">Page {meta.current_page} of {meta.last_page} — {meta.total} total</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchCustomers(meta.current_page - 1)}
+              disabled={!meta.prev}
+              className="px-3 py-1 text-sm rounded bg-gray-100 disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <button
+              onClick={() => fetchCustomers(meta.current_page + 1)}
+              disabled={!meta.next}
+              className="px-3 py-1 text-sm rounded bg-gray-100 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
