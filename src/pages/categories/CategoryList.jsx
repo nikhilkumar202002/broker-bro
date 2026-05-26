@@ -3,22 +3,52 @@ import toast from 'react-hot-toast';
 import { getCategories, deleteCategory, activateCategory, deactivateCategory } from '../../services/api';
 import CategoryForm from '../../features/properties/components/CategoryForm';
 
+const getCategoriesPayload = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? {};
+
+  if (Array.isArray(payload?.propertyCategories)) {
+    return {
+      items: payload.propertyCategories,
+      pagination: payload.pagination ?? null,
+    };
+  }
+
+  if (Array.isArray(payload?.categories)) {
+    return {
+      items: payload.categories,
+      pagination: payload.pagination ?? null,
+    };
+  }
+
+  if (Array.isArray(payload)) {
+    return { items: payload, pagination: null };
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return { items: payload.data, pagination: payload.pagination ?? null };
+  }
+
+  return { items: [], pagination: null };
+};
+
+const getCategoryId = (category) => category?.id ?? category?._id;
+
 export default function CategoryList() {
   const [categories, setCategories] = useState([]);
+  const [pagination, setPagination] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal & Edit State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
 
-  const fetchCategories = async () => {
+  const fetchCategories = async (page = 1) => {
     try {
       setIsLoading(true);
-      const res = await getCategories();
-      const outer = res?.data ?? res;
-      const payload = outer?.data ?? outer;
-      const items = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
+      const res = await getCategories({ page, limit: 10 });
+      const { items, pagination: paginationData } = getCategoriesPayload(res);
       setCategories(items);
+      setPagination(paginationData);
     } catch (error) {
       // Error handled by interceptor
     } finally {
@@ -29,18 +59,17 @@ export default function CategoryList() {
   // Background refresh without loader
   const backgroundRefreshCategories = async () => {
     try {
-      const res = await getCategories();
-      const outer = res?.data ?? res;
-      const payload = outer?.data ?? outer;
-      const items = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
+      const res = await getCategories({ page: pagination?.page ?? 1, limit: 10 });
+      const { items, pagination: paginationData } = getCategoriesPayload(res);
       setCategories(items);
+      setPagination(paginationData);
     } catch (error) {
       // Silent error handling - don't show loader
     }
   };
 
   useEffect(() => {
-    fetchCategories();
+    fetchCategories(1);
     
     // Set up auto-refresh every 5 seconds
     const interval = setInterval(() => {
@@ -74,7 +103,7 @@ export default function CategoryList() {
       toast.promise(deletePromise, {
         loading: 'Deleting category...',
         success: () => {
-          setCategories((prev) => prev.filter((c) => c.id !== id));
+          setCategories((prev) => prev.filter((c) => getCategoryId(c) !== id));
           return 'Category deleted successfully!';
         },
         error: null, 
@@ -83,10 +112,10 @@ export default function CategoryList() {
   };
 
   const handleToggleStatus = (category) => {
-    const isCurrentlyActive = category.status === true || category.status === 1;
+    const isCurrentlyActive = category.status === true || category.status === 1 || category.status === '1' || String(category.status).toLowerCase() === 'active';
     const togglePromise = isCurrentlyActive 
-      ? deactivateCategory(category.id)
-      : activateCategory(category.id);
+      ? deactivateCategory(getCategoryId(category))
+      : activateCategory(getCategoryId(category));
 
     toast.promise(togglePromise, {
       loading: isCurrentlyActive ? 'Deactivating...' : 'Activating...',
@@ -94,8 +123,8 @@ export default function CategoryList() {
         // Update the category in state
         setCategories((prev) =>
           prev.map((c) =>
-            c.id === category.id
-              ? { ...c, status: isCurrentlyActive ? 0 : 1 }
+            getCategoryId(c) === getCategoryId(category)
+              ? { ...c, status: isCurrentlyActive ? 'inactive' : 'active' }
               : c
           )
         );
@@ -104,6 +133,12 @@ export default function CategoryList() {
       error: null,
     }).catch(() => {});
   };
+
+  const currentPage = pagination?.page ?? 1;
+  const totalPages = pagination?.totalPages ?? 1;
+  const total = pagination?.total ?? categories.length;
+  const perPage = pagination?.limit ?? 10;
+  const startIndex = (currentPage - 1) * perPage;
 
   return (
     <div className="space-y-6">
@@ -152,6 +187,7 @@ export default function CategoryList() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sl No</th>
                 <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category Name</th>
                 <th scope="col" className="px-3 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Image</th>
                 <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</th>
@@ -163,18 +199,19 @@ export default function CategoryList() {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">Loading categories...</td>
+                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">Loading categories...</td>
                 </tr>
               ) : categories.length > 0 ? (
-                categories.map((category) => (
-                  <tr key={category.id} className="hover:bg-gray-50/50 transition-colors">
+                categories.map((category, index) => (
+                  <tr key={getCategoryId(category)} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-500">{startIndex + index + 1}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {category.name}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap">
-                      {category.full_image_url || category.image_url ? (
+                      {category.image_full_url || category.full_image_url || category.image_url ? (
                         <img
-                          src={category.full_image_url ?? category.image_url}
+                          src={category.image_full_url ?? category.full_image_url ?? category.image_url}
                           alt={category.name}
                           className="w-10 h-10 rounded-md object-cover"
                         />
@@ -191,11 +228,16 @@ export default function CategoryList() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {(() => {
                         const s = category.status;
+                        const hasStatus = typeof s !== 'undefined' && s !== null;
                         const isActive = s === 1 || s === '1' || s === true || String(s).toLowerCase() === 'active';
                         const statusLabel = isActive ? 'Active' : 'Inactive';
                         const statusClass = isActive
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                           : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100';
+
+                        if (!hasStatus) {
+                          return <span className="text-sm text-gray-400">-</span>;
+                        }
 
                         return (
                           <button
@@ -213,7 +255,7 @@ export default function CategoryList() {
                       <button onClick={() => openEdit(category)} className="text-amber-600 hover:text-amber-900 transition-colors" title="Edit">
                         <svg className="w-5 h-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                       </button>
-                      <button onClick={() => handleDelete(category.id)} className="text-red-600 hover:text-red-900 transition-colors" title="Delete">
+                      <button onClick={() => handleDelete(getCategoryId(category))} className="text-red-600 hover:text-red-900 transition-colors" title="Delete">
                         <svg className="w-5 h-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                       </button>
                     </td>
@@ -221,13 +263,35 @@ export default function CategoryList() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">No categories found.</td>
+                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">No categories found.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-gray-600">Page {currentPage} of {totalPages} - {total} total</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchCategories(currentPage - 1)}
+              disabled={!pagination.prevPageUrl}
+              className="px-3 py-1 text-sm rounded bg-gray-100 disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <button
+              onClick={() => fetchCategories(currentPage + 1)}
+              disabled={!pagination.nextPageUrl}
+              className="px-3 py-1 text-sm rounded bg-gray-100 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

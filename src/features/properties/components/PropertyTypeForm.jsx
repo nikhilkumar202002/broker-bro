@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { createPropertyType, updatePropertyType } from '../../../services/api';
+
+const getPropertyTypeId = (propertyType) => propertyType?.id ?? propertyType?._id;
+const getPropertyTypeImageUrl = (propertyType) =>
+  propertyType?.image_full_url ?? propertyType?.full_image_url ?? propertyType?.image_url ?? propertyType?.image_path;
 
 export default function PropertyTypeForm({ onSuccess, onClose, initialData }) {
   const navigate = useNavigate();
@@ -9,9 +13,11 @@ export default function PropertyTypeForm({ onSuccess, onClose, initialData }) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    status: 1, // 1 active, 0 inactive
+    status: 'active',
     image: null,
   });
+  const [imagePreview, setImagePreview] = useState('');
+  const objectUrlRef = useRef('');
 
   // Populate form if we are editing an existing property type
   useEffect(() => {
@@ -19,21 +25,40 @@ export default function PropertyTypeForm({ onSuccess, onClose, initialData }) {
       setFormData({
         name: initialData.name || '',
         description: initialData.description || '',
-        status: initialData.status === true || initialData.status === 1 ? 1 : 0,
+        status: initialData.status === true || initialData.status === 1 || initialData.status === '1' || String(initialData.status).toLowerCase() === 'active'
+          ? 'active'
+          : 'inactive',
         image: null, // Don't pre-populate the file input for security, let user upload a new one if needed
       });
+      setImagePreview(getPropertyTypeImageUrl(initialData) || '');
     }
   }, [initialData]);
+
+  useEffect(() => () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, type, files } = e.target;
     if (type === 'file') {
-      setFormData((prev) => ({ ...prev, [name]: files[0] }));
+      const file = files[0] || null;
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = '';
+      }
+
+      setFormData((prev) => ({ ...prev, [name]: file }));
+      if (file) {
+        objectUrlRef.current = URL.createObjectURL(file);
+      }
+      setImagePreview(objectUrlRef.current || getPropertyTypeImageUrl(initialData) || '');
       return;
     }
 
     if (name === 'status') {
-      setFormData((prev) => ({ ...prev, [name]: Number(value) }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
       return;
     }
 
@@ -52,8 +77,9 @@ export default function PropertyTypeForm({ onSuccess, onClose, initialData }) {
     });
 
     // Check if we are updating (initialData exists) or creating
+    const propertyTypeId = getPropertyTypeId(initialData);
     const apiPromise = initialData 
-      ? updatePropertyType(initialData.id, formData)
+      ? updatePropertyType(propertyTypeId, formData)
       : createPropertyType(formData);
 
     toast.promise(apiPromise, {
@@ -127,8 +153,8 @@ export default function PropertyTypeForm({ onSuccess, onClose, initialData }) {
               onChange={handleChange}
               className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none"
             >
-              <option value={1}>Active</option>
-              <option value={0}>Inactive</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
             </select>
           </div>
 
@@ -144,6 +170,15 @@ export default function PropertyTypeForm({ onSuccess, onClose, initialData }) {
                 className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
+            {imagePreview && (
+              <div className="mt-3">
+                <img
+                  src={imagePreview}
+                  alt={formData.name || 'Property type'}
+                  className="h-20 w-20 rounded-lg border border-gray-200 object-cover"
+                />
+              </div>
+            )}
             <p className="mt-2 text-xs text-gray-500">Optional: PNG, JPG, GIF (Max 5MB)</p>
           </div>
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../../services/api';
-import { FiHome, FiPackage, FiTag, FiUsers, FiChevronDown, FiLogOut } from 'react-icons/fi';
+import { FiGlobe, FiHome, FiPackage, FiTag, FiUsers, FiChevronDown, FiLogOut } from 'react-icons/fi';
 
 export default function Sidebar() {
   const navigate = useNavigate();
@@ -11,6 +11,7 @@ export default function Sidebar() {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: FiHome },
     { name: 'Properties', path: '/properties', icon: FiPackage },
+    { name: 'World', path: '/world', icon: FiGlobe },
     {
       name: 'Property Setting',
       icon: FiPackage,

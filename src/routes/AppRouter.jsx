@@ -3,6 +3,7 @@ import Login from '../features/auth/Login';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Dashboard from '../pages/dashboard/Dashboard';
 import PropertiesList from '../pages/properties/PropertiesList';
+import World from '../pages/world/World';
 import CategoryList from '../pages/categories/CategoryList';
 import PropertyList from '../pages/types/PropertyList';
 import Amenties from '../pages/property-settings/Amenties';
@@ -33,6 +34,10 @@ const router = createBrowserRouter([
       {
         path: '/properties',
         element: <PropertiesList />,
+      },
+      {
+        path: '/world',
+        element: <World />,
       },
       { path: '/categories/property-type', element: <PropertyList /> },
       { path: '/categories/property-category', element: <CategoryList /> },

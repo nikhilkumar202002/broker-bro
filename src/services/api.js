@@ -106,6 +106,8 @@ export const deactivateCategory = (id) => api.put(`/categories/${id}/deactivate`
 export const createPropertyType = (data) => api.post('/property-types', withUploadSupport(data));
 export const updatePropertyType = (id, data) => api.put(`/property-types/${id}`, withUploadSupport(data));
 export const getPropertyTypes = (params) => api.get('/property-types', { params });
+export const getActivePropertyTypes = (params) => getPropertyTypes({ ...(params || {}), status: 'active' });
+export const getInactivePropertyTypes = (params) => getPropertyTypes({ ...(params || {}), status: 'inactive' });
 export const deletePropertyType = (id) => api.delete(`/property-types/${id}`);
 export const activatePropertyType = (id) => api.put(`/property-types/${id}/activate`);
 export const deactivatePropertyType = (id) => api.put(`/property-types/${id}/deactivate`);
@@ -118,10 +120,23 @@ export const createAmenity = (data) => api.post('/amenities', withUploadSupport(
 export const getFacilities = (params) => api.get('/facilities', { params });
 export const createFacility = (data) => api.post('/facilities', withUploadSupport(data));
 
+// World
+export const getCountries = (params) => api.get('/countries', { params });
+export const getCountryStatesDistricts = (id, params) => api.get(`/countries/${id}/states-districts`, { params });
+export const getStates = (params) => api.get('/states', { params });
+export const getDistricts = (params) => api.get('/districts', { params });
+
 // Properties
 export const getProperties = (params) => api.get('/properties', { params });
+export const getAllProperties = (params) => getProperties(params);
+export const getNotApprovedProperties = (params) => getProperties({ ...(params || {}), is_approved: null });
+export const getApprovedProperties = (params) => getProperties({ ...(params || {}), is_approved: true });
+export const getRejectedProperties = (params) => getProperties({ ...(params || {}), is_approved: false });
 export const getProperty = (id) => api.get(`/properties/${id}`);
-export const approveProperty = (id) => api.put(`/properties/${id}/approve`);
+export const approveProperty = (id) => api.patch(`/properties/${id}/approve`);
+export const updatePropertyStatus = (id, data) => api.patch(`/properties/${id}/status`, data);
+export const featureProperty = (id) => api.patch(`/properties/${id}/feature`);
+export const unfeatureProperty = (id) => api.patch(`/properties/${id}/unfeature`);
 
 // Users
 export const getUsers = (params) => api.get('/users', { params });

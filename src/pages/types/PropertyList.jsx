@@ -3,22 +3,45 @@ import toast from 'react-hot-toast';
 import { getPropertyTypes, deletePropertyType, activatePropertyType, deactivatePropertyType } from '../../services/api';
 import PropertyTypeForm from '../../features/properties/components/PropertyTypeForm';
 
+const getPropertyTypesPayload = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? {};
+
+  if (Array.isArray(payload?.propertyTypes)) {
+    return {
+      items: payload.propertyTypes,
+      pagination: payload.pagination ?? null,
+    };
+  }
+
+  if (Array.isArray(payload)) {
+    return { items: payload, pagination: null };
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return { items: payload.data, pagination: payload.pagination ?? null };
+  }
+
+  return { items: [], pagination: null };
+};
+
+const getPropertyTypeId = (propertyType) => propertyType?.id ?? propertyType?._id;
+
 export default function PropertyList() {
   const [propertyTypes, setPropertyTypes] = useState([]);
+  const [pagination, setPagination] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal & Edit State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPropertyType, setEditingPropertyType] = useState(null);
 
-  const fetchPropertyTypes = async () => {
+  const fetchPropertyTypes = async (page = 1) => {
     try {
       setIsLoading(true);
-      const res = await getPropertyTypes();
-      const outer = res?.data ?? res;
-      const payload = outer?.data ?? outer;
-      const items = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
+      const res = await getPropertyTypes({ page, limit: 10 });
+      const { items, pagination: paginationData } = getPropertyTypesPayload(res);
       setPropertyTypes(items);
+      setPagination(paginationData);
     } catch (error) {
       // Error handled by interceptor
     } finally {
@@ -29,18 +52,17 @@ export default function PropertyList() {
   // Background refresh without loader
   const backgroundRefreshPropertyTypes = async () => {
     try {
-      const res = await getPropertyTypes();
-      const outer = res?.data ?? res;
-      const payload = outer?.data ?? outer;
-      const items = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
+      const res = await getPropertyTypes({ page: pagination?.page ?? 1, limit: 10 });
+      const { items, pagination: paginationData } = getPropertyTypesPayload(res);
       setPropertyTypes(items);
+      setPagination(paginationData);
     } catch (error) {
       // Silent error handling - don't show loader
     }
   };
 
   useEffect(() => {
-    fetchPropertyTypes();
+    fetchPropertyTypes(1);
     
     // Set up auto-refresh every 5 seconds
     const interval = setInterval(() => {
@@ -74,7 +96,7 @@ export default function PropertyList() {
       toast.promise(deletePromise, {
         loading: 'Deleting property type...',
         success: () => {
-          setPropertyTypes((prev) => prev.filter((pt) => pt.id !== id));
+          setPropertyTypes((prev) => prev.filter((pt) => getPropertyTypeId(pt) !== id));
           return 'Property type deleted successfully!';
         },
         error: null, 
@@ -85,17 +107,17 @@ export default function PropertyList() {
   const handleToggleStatus = (propertyType) => {
     const isCurrentlyActive = propertyType.status === true || propertyType.status === 1;
     const togglePromise = isCurrentlyActive 
-      ? deactivatePropertyType(propertyType.id)
-      : activatePropertyType(propertyType.id);
+      ? deactivatePropertyType(getPropertyTypeId(propertyType))
+      : activatePropertyType(getPropertyTypeId(propertyType));
 
     toast.promise(togglePromise, {
       loading: isCurrentlyActive ? 'Deactivating...' : 'Activating...',
       success: () => {
         // Update the property type in state
-        setPropertyTypes((prev) =>
-          prev.map((pt) =>
-            pt.id === propertyType.id
-              ? { ...pt, status: isCurrentlyActive ? 0 : 1 }
+    setPropertyTypes((prev) =>
+      prev.map((pt) =>
+        getPropertyTypeId(pt) === getPropertyTypeId(propertyType)
+              ? { ...pt, status: isCurrentlyActive ? 'inactive' : 'active' }
               : pt
           )
         );
@@ -104,6 +126,12 @@ export default function PropertyList() {
       error: null,
     }).catch(() => {});
   };
+
+  const currentPage = pagination?.page ?? 1;
+  const totalPages = pagination?.totalPages ?? 1;
+  const total = pagination?.total ?? propertyTypes.length;
+  const perPage = pagination?.limit ?? 10;
+  const startIndex = (currentPage - 1) * perPage;
 
   return (
     <div className="space-y-6">
@@ -152,6 +180,7 @@ export default function PropertyList() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Sl No</th>
                 <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type Name</th>
                 <th scope="col" className="px-3 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Image</th>
                 <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</th>
@@ -163,18 +192,19 @@ export default function PropertyList() {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">Loading property types...</td>
+                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">Loading property types...</td>
                 </tr>
               ) : propertyTypes.length > 0 ? (
-                propertyTypes.map((propertyType) => (
-                  <tr key={propertyType.id} className="hover:bg-gray-50/50 transition-colors">
+                propertyTypes.map((propertyType, index) => (
+                  <tr key={getPropertyTypeId(propertyType)} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-500">{startIndex + index + 1}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {propertyType.name}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap">
-                      {propertyType.full_image_url || propertyType.image_url ? (
+                      {propertyType.image_full_url || propertyType.full_image_url || propertyType.image_url ? (
                         <img
-                          src={propertyType.full_image_url ?? propertyType.image_url}
+                          src={propertyType.image_full_url ?? propertyType.full_image_url ?? propertyType.image_url}
                           alt={propertyType.name}
                           className="w-10 h-10 rounded-md object-cover"
                         />
@@ -191,11 +221,16 @@ export default function PropertyList() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {(() => {
                         const s = propertyType.status;
+                        const hasStatus = typeof s !== 'undefined' && s !== null;
                         const isActive = s === 1 || s === '1' || s === true || String(s).toLowerCase() === 'active';
                         const statusLabel = isActive ? 'Active' : 'Inactive';
                         const statusClass = isActive
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                           : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100';
+
+                        if (!hasStatus) {
+                          return <span className="text-sm text-gray-400">-</span>;
+                        }
 
                         return (
                           <button
@@ -212,7 +247,7 @@ export default function PropertyList() {
                       <button onClick={() => openEdit(propertyType)} className="text-amber-600 hover:text-amber-900 transition-colors" title="Edit">
                         <svg className="w-5 h-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                       </button>
-                      <button onClick={() => handleDelete(propertyType.id)} className="text-red-600 hover:text-red-900 transition-colors" title="Delete">
+                      <button onClick={() => handleDelete(getPropertyTypeId(propertyType))} className="text-red-600 hover:text-red-900 transition-colors" title="Delete">
                         <svg className="w-5 h-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                       </button>
                     </td>
@@ -220,13 +255,35 @@ export default function PropertyList() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">No property types found.</td>
+                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">No property types found.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {pagination && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-gray-600">Page {currentPage} of {totalPages} - {total} total</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchPropertyTypes(currentPage - 1)}
+              disabled={!pagination.prevPageUrl}
+              className="px-3 py-1 text-sm rounded bg-gray-100 disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <button
+              onClick={() => fetchPropertyTypes(currentPage + 1)}
+              disabled={!pagination.nextPageUrl}
+              className="px-3 py-1 text-sm rounded bg-gray-100 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
