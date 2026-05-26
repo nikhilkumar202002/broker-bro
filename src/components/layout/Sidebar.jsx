@@ -11,6 +11,14 @@ export default function Sidebar() {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: FiHome },
     { name: 'Properties', path: '/properties', icon: FiPackage },
+    {
+      name: 'Property Setting',
+      icon: FiPackage,
+      submenu: [
+        { name: 'Amenities', path: '/property-setting/amenities' },
+        { name: 'Facilities', path: '/property-setting/facilities' }
+      ]
+    },
     { 
       name: 'Categories', 
       icon: FiTag,
