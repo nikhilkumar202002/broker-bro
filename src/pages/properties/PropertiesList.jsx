@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import PropertyModal from '../../components/ui/PropertyModal';
-import { getProperties, approveProperty } from '../../services/api';
+import { createProperty, getProperties, approveProperty, updateProperty } from '../../services/api';
 import toast from 'react-hot-toast';
 import { FiEdit, FiTrash2, FiEye } from 'react-icons/fi';
 
@@ -121,16 +121,20 @@ export default function PropertiesList() {
     }
   };
 
-  const handleSave = (formData) => {
-    if (editingProperty) {
-      setProperties((prev) =>
-        prev.map((p) => (getPropertyId(p) === getPropertyId(editingProperty) ? { ...p, ...formData } : p))
-      );
-    } else {
-      const newId = `#P-${String(properties.length + 1).padStart(3, '0')}`;
-      setProperties((prev) => [{ id: newId, ...formData }, ...prev]);
-    }
+  const handleSave = async (formData) => {
+    const propertyId = getPropertyId(editingProperty);
+    const savePromise = editingProperty
+      ? updateProperty(propertyId, formData)
+      : createProperty(formData);
+
+    await toast.promise(savePromise, {
+      loading: editingProperty ? 'Updating property...' : 'Creating property...',
+      success: editingProperty ? 'Property updated successfully' : 'Property created successfully',
+      error: editingProperty ? 'Failed to update property' : 'Failed to create property',
+    });
+
     setModalOpen(false);
+    fetchProperties(currentPage);
   };
 
   const currentPage = meta?.page ?? meta?.current_page ?? 1;

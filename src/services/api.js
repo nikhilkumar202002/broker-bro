@@ -45,7 +45,13 @@ const toFormData = (data) => {
   const form = new FormData();
 
   Object.entries(data || {}).forEach(([key, value]) => {
-    if (typeof value !== 'undefined' && value !== null) {
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (typeof item !== 'undefined' && item !== null && item !== '') {
+          form.append(key, item);
+        }
+      });
+    } else if (typeof value !== 'undefined' && value !== null) {
       form.append(key, value);
     }
   });
@@ -54,7 +60,11 @@ const toFormData = (data) => {
 };
 
 const hasUpload = (data) =>
-  Object.values(data || {}).some((value) => value instanceof File || value instanceof Blob);
+  Object.values(data || {}).some((value) =>
+    Array.isArray(value)
+      ? value.some((item) => item instanceof File || item instanceof Blob)
+      : value instanceof File || value instanceof Blob
+  );
 
 const withUploadSupport = (data) => (hasUpload(data) ? toFormData(data) : data);
 
@@ -127,6 +137,8 @@ export const getStates = (params) => api.get('/states', { params });
 export const getDistricts = (params) => api.get('/districts', { params });
 
 // Properties
+export const createProperty = (data) => api.post('/properties', withUploadSupport(data));
+export const updateProperty = (id, data) => api.put(`/properties/${id}`, withUploadSupport(data));
 export const getProperties = (params) => api.get('/properties', { params });
 export const getAllProperties = (params) => getProperties(params);
 export const getNotApprovedProperties = (params) => getProperties({ ...(params || {}), is_approved: null });
