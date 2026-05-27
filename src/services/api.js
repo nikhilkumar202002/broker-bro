@@ -142,6 +142,7 @@ export const getDistricts = (params) => api.get('/districts', { params });
 export const createProperty = (data) => api.post('/properties', withUploadSupport(data));
 export const updateProperty = (id, data) => api.put(`/properties/${id}`, withUploadSupport(data));
 export const getProperties = (params) => api.get('/properties', { params });
+export const getPropertyStatuses = (params) => api.get('/property-statuses', { params });
 export const getAllProperties = (params) => getProperties(params);
 export const getNotApprovedProperties = (params) => getProperties({ ...(params || {}), is_approved: null });
 export const getApprovedProperties = (params) => getProperties({ ...(params || {}), is_approved: true });

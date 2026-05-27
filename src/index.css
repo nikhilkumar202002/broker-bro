@@ -5,3 +5,9 @@
   font-family: 'Inter', sans-serif;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+  background-color: #2B1205;
+}

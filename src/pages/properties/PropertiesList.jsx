@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import PropertyModal from '../../components/ui/PropertyModal';
-import { createProperty, getProperties, approveProperty, updateProperty } from '../../services/api';
+import { createProperty, getCategories, getProperties, getPropertyTypes, getPropertyStatuses, approveProperty, featureProperty, unfeatureProperty, updatePropertyStatus } from '../../services/api';
 import toast from 'react-hot-toast';
-import { FiEdit, FiTrash2, FiEye } from 'react-icons/fi';
+import { FiCheck, FiTrash2, FiEye, FiStar, FiPower } from 'react-icons/fi';
 
 const initialProperties = [];
 
@@ -36,33 +36,116 @@ const getPropertiesPayload = (response) => {
   return { items: [], pagination: null };
 };
 
+const getCategoriesPayload = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? {};
+
+  if (Array.isArray(payload?.propertyCategories)) return payload.propertyCategories;
+  if (Array.isArray(payload?.categories)) return payload.categories;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+
+  return [];
+};
+
+const getPropertyTypesPayload = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? {};
+
+  if (Array.isArray(payload?.propertyTypes)) return payload.propertyTypes;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+
+  return [];
+};
+
+const getPropertyStatusesPayload = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? {};
+
+  if (Array.isArray(payload?.propertyStatuses)) return payload.propertyStatuses;
+  if (Array.isArray(payload?.statuses)) return payload.statuses;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+
+  return [];
+};
+
 const getPropertyId = (property) => property?.id ?? property?._id;
+const getOptionId = (option) => option?.id ?? option?._id ?? option?.value ?? option?.name;
+const normalizeStatusText = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+const getStatusOptionKey = (status) => normalizeStatusText(status?.value ?? status?.name ?? status?.status ?? status?.label);
+const getPropertyImageUrl = (property) => {
+  const image =
+    property?.image_full_url ||
+    property?.full_image_url ||
+    property?.image_url ||
+    property?.image_path ||
+    property?.thumbnail_full_url ||
+    property?.thumbnail_url ||
+    property?.property_images?.[0] ||
+    property?.images?.[0];
+
+  if (!image || typeof image === 'string') {
+    return image || '';
+  }
+
+  return image.image_full_url || image.full_image_url || image.image_url || image.url || image.path || '';
+};
+
 const getPropertyStatusLabel = (property) => {
   if (property?.is_approved === true) return 'Approved';
   if (property?.is_approved === false) return 'Rejected';
   return property?.property_status?.name || property?.property_status || 'Pending';
 };
 
+const isPropertyFeatured = (property) =>
+  property?.is_featured === true ||
+  property?.is_featured === 1 ||
+  property?.is_featured === '1' ||
+  String(property?.is_featured).toLowerCase() === 'true' ||
+  String(property?.featured).toLowerCase() === 'true';
+
+const isPropertyActive = (property) => {
+  const status = property?.status ?? property?.property_status?.value ?? property?.property_status?.name ?? property?.property_status;
+
+  return status === true ||
+    status === 1 ||
+    status === '1' ||
+    String(status).toLowerCase() === 'active';
+};
+
 export default function PropertiesList() {
   const [properties, setProperties] = useState(initialProperties);
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [typeOptions, setTypeOptions] = useState([]);
+  const [statusOptions, setStatusOptions] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingProperty, setEditingProperty] = useState(null);
+  const [viewingProperty, setViewingProperty] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [meta, setMeta] = useState(null);
   const [updatingIds, setUpdatingIds] = useState([]);
+  const [featuringIds, setFeaturingIds] = useState([]);
+  const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
 
-  const categories = ['All', ...Array.from(new Set(properties.flatMap((p) => (p.property_categories || p.categories || []).map(c => c.name))))];
+  const getPropertyOptionKeys = (items) =>
+    (items || []).flatMap((item) => [
+      item?.id,
+      item?._id,
+      item?.value,
+      item?.name,
+    ]).filter(Boolean).map(String);
 
   const filtered = properties.filter((p) => {
+    const categoryKeys = getPropertyOptionKeys(p.property_categories || p.categories);
+    const typeKeys = getPropertyOptionKeys(p.property_types || p.types);
     const matchesSearch =
       String(p.name || '').toLowerCase().includes(search.toLowerCase()) ||
       String(getPropertyId(p) || '').toLowerCase().includes(search.toLowerCase());
-    const primaryCategory = ((p.property_categories || p.categories || [])[0]?.name) || '';
-    const matchesCategory = categoryFilter === 'All' || primaryCategory === categoryFilter;
-    return matchesSearch && matchesCategory;
+    const matchesCategory = categoryFilter === 'all' || categoryKeys.includes(String(categoryFilter));
+    const matchesType = typeFilter === 'all' || typeKeys.includes(String(typeFilter));
+    return matchesSearch && matchesCategory && matchesType;
   });
 
   const fetchProperties = async (page = 1) => {
@@ -82,22 +165,57 @@ export default function PropertiesList() {
   };
 
   useEffect(() => {
-    fetchProperties(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const timer = setTimeout(() => {
+      fetchProperties(1);
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, []);
 
-  const openAdd = () => {
-    setEditingProperty(null);
-    setModalOpen(true);
-  };
+  useEffect(() => {
+    const fetchFilters = async () => {
+      try {
+        const [categoriesRes, typesRes] = await Promise.all([
+          getCategories({ status: 'active', limit: 100 }),
+          getPropertyTypes({ status: 'active', limit: 100 }),
+        ]);
 
-  const openEdit = (property) => {
-    setEditingProperty(property);
-    setModalOpen(true);
-  };
+        setCategoryOptions(getCategoriesPayload(categoriesRes));
+        setTypeOptions(getPropertyTypesPayload(typesRes));
+      } catch (e) {
+        console.error('Failed to load property filters', e);
+      }
+    };
+
+    fetchFilters();
+  }, []);
+
+  useEffect(() => {
+    const fetchStatuses = async () => {
+      try {
+        const res = await getPropertyStatuses({ limit: 100 });
+        setStatusOptions(getPropertyStatusesPayload(res));
+      } catch (e) {
+        console.error('Failed to load property statuses', e);
+      }
+    };
+
+    fetchStatuses();
+  }, []);
 
   const handleDelete = (id) => {
     setProperties((prev) => prev.filter((p) => getPropertyId(p) !== id));
+  };
+
+  const handleSave = async (formData) => {
+    await toast.promise(createProperty(formData), {
+      loading: 'Creating property...',
+      success: 'Property created successfully',
+      error: 'Failed to create property',
+    });
+
+    setModalOpen(false);
+    fetchProperties(currentPage);
   };
 
   const handleApprove = async (property) => {
@@ -121,27 +239,71 @@ export default function PropertiesList() {
     }
   };
 
-  const handleSave = async (formData) => {
-    const propertyId = getPropertyId(editingProperty);
-    const savePromise = editingProperty
-      ? updateProperty(propertyId, formData)
-      : createProperty(formData);
+  const handleToggleFeatured = async (property) => {
+    const id = getPropertyId(property);
+    const isFeatured = isPropertyFeatured(property);
+    const togglePromise = isFeatured ? unfeatureProperty(id) : featureProperty(id);
 
-    await toast.promise(savePromise, {
-      loading: editingProperty ? 'Updating property...' : 'Creating property...',
-      success: editingProperty ? 'Property updated successfully' : 'Property created successfully',
-      error: editingProperty ? 'Failed to update property' : 'Failed to create property',
+    try {
+      setFeaturingIds((prev) => [...prev, id]);
+      await togglePromise;
+      setProperties((prev) =>
+        prev.map((item) =>
+          getPropertyId(item) === id
+            ? { ...item, is_featured: !isFeatured, featured: !isFeatured }
+            : item
+        )
+      );
+      toast.success(isFeatured ? 'Property unfeatured' : 'Property featured');
+    } catch (e) {
+      console.error('Feature toggle failed', e);
+    } finally {
+      setFeaturingIds((prev) => prev.filter((itemId) => itemId !== id));
+    }
+  };
+
+  const handleToggleStatus = async (property) => {
+    const id = getPropertyId(property);
+    const currentlyActive = isPropertyActive(property);
+    const nextStatus = currentlyActive ? 'unactive' : 'active';
+    const nextStatusOption = statusOptions.find((status) => {
+      const key = getStatusOptionKey(status);
+      return nextStatus === 'active'
+        ? key === 'active'
+        : key === 'unactive' || key === 'inactive';
     });
+    const nextStatusId = getOptionId(nextStatusOption);
 
-    setModalOpen(false);
-    fetchProperties(currentPage);
+    if (!nextStatusId) {
+      toast.error(`Unable to find ${nextStatus} status id`);
+      return;
+    }
+
+    try {
+      setStatusUpdatingIds((prev) => [...prev, id]);
+      await updatePropertyStatus(id, { property_status_id: nextStatusId });
+      setProperties((prev) =>
+        prev.map((item) =>
+          getPropertyId(item) === id
+            ? {
+                ...item,
+                property_status_id: nextStatusId,
+                property_status: nextStatusOption,
+              }
+            : item
+        )
+      );
+      toast.success(nextStatus === 'active' ? 'Property activated' : 'Property set as unactive');
+    } catch (e) {
+      console.error('Status update failed', e);
+    } finally {
+      setStatusUpdatingIds((prev) => prev.filter((itemId) => itemId !== id));
+    }
   };
 
   const currentPage = meta?.page ?? meta?.current_page ?? 1;
   const totalPages = meta?.totalPages ?? meta?.last_page ?? 1;
   const total = meta?.total ?? properties.length;
-  const perPage = meta?.limit ?? 10;
-  const startIndex = (currentPage - 1) * perPage;
 
   return (
     <div className="space-y-6">
@@ -152,7 +314,7 @@ export default function PropertiesList() {
           <p className="text-sm text-gray-500 mt-1">Manage and view all your property listings.</p>
         </div>
         <button
-          onClick={openAdd}
+          onClick={() => setModalOpen(true)}
           className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
         >
           <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -163,7 +325,7 @@ export default function PropertiesList() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col lg:flex-row gap-3">
         <input
           type="text"
           placeholder="Search by name..."
@@ -171,112 +333,179 @@ export default function PropertiesList() {
           onChange={(e) => setSearch(e.target.value)}
           className="w-full sm:w-72 px-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <div className="flex gap-2 flex-wrap">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat)}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                categoryFilter === cat
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full lg:max-w-xl">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Categories</option>
+            {categoryOptions.map((category) => {
+              const optionId = String(getOptionId(category));
+
+              return (
+                <option key={optionId} value={optionId}>
+                  {category.name}
+                </option>
+              );
+            })}
+          </select>
+
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="w-full px-4 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Types</option>
+            {typeOptions.map((type) => {
+              const optionId = String(getOptionId(type));
+
+              return (
+                <option key={optionId} value={optionId}>
+                  {type.name}
+                </option>
+              );
+            })}
+          </select>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-100">
-            <thead className="bg-gray-50">
-              <tr>
-                {['Sl No', 'Name', 'Category', 'Type', 'Approval', 'Date', 'Actions'].map((h) => (
-                  <th
-                    key={h}
-                    className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">Loading properties...</td>
-                </tr>
-              ) : error ? (
-                <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-red-500">{error}</td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-400">No properties found.</td>
-                </tr>
-              ) : (
-                filtered.map((property, index) => {
-                  const propertyId = getPropertyId(property);
-                  const statusLabel = getPropertyStatusLabel(property);
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        {loading ? (
+          <div className="xl:col-span-2 bg-white border border-gray-100 rounded-xl px-5 py-10 text-center text-sm text-gray-400 shadow-sm">
+            Loading properties...
+          </div>
+        ) : error ? (
+          <div className="xl:col-span-2 bg-white border border-red-100 rounded-xl px-5 py-10 text-center text-sm text-red-500 shadow-sm">
+            {error}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="xl:col-span-2 bg-white border border-gray-100 rounded-xl px-5 py-10 text-center text-sm text-gray-400 shadow-sm">
+            No properties found.
+          </div>
+        ) : (
+          filtered.map((property) => {
+            const propertyId = getPropertyId(property);
+            const statusLabel = getPropertyStatusLabel(property);
+            const isFeatured = isPropertyFeatured(property);
+            const isActive = isPropertyActive(property);
+            const imageUrl = getPropertyImageUrl(property);
+            const categoryName = ((property.property_categories || property.categories || [])[0]?.name) || '-';
+            const typeName = (property.property_types && property.property_types[0] && property.property_types[0].name) || '-';
+            const createdDate = property.createdAt || property.created_at
+              ? new Date(property.createdAt ?? property.created_at).toLocaleDateString()
+              : '-';
 
-                  return (
-                  <tr key={propertyId} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-4 text-sm font-medium text-gray-500">{startIndex + index + 1}</td>
-                    <td className="px-5 py-4 text-sm font-medium text-gray-900">{property.name}</td>
-                    <td className="px-5 py-4 text-sm text-gray-500">{((property.property_categories || property.categories || [])[0]?.name) || '-'}</td>
-                    <td className="px-5 py-4 text-sm text-gray-500">{(property.property_types && property.property_types[0] && property.property_types[0].name) || '-'}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[statusLabel] || 'bg-gray-100 text-gray-500'}`}>
-                          {statusLabel}
-                        </span>
-                        {property.is_approved !== true && (
-                          <button
-                            onClick={() => handleApprove(property)}
-                            disabled={updatingIds.includes(propertyId)}
-                            className="text-sm px-2 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50"
-                          >
-                            {updatingIds.includes(propertyId) ? 'Approving...' : 'Approve'}
-                          </button>
-                        )}
+            return (
+              <article
+                key={propertyId}
+                className="h-full bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden transition-colors hover:border-blue-100"
+              >
+                <div className="flex flex-col sm:flex-row h-full">
+                  <div className="sm:w-1/2 shrink-0 self-stretch bg-gray-100">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={property.name || 'Property'}
+                        className="h-48 sm:h-full min-h-56 w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-48 sm:h-full min-h-56 w-full flex items-center justify-center text-sm text-gray-400">
+                        No image
                       </div>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-gray-400">{property.createdAt || property.created_at ? new Date(property.createdAt ?? property.created_at).toLocaleDateString() : '-'}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openEdit(property)}
-                          title="View"
-                          className="p-2 rounded hover:bg-gray-100 text-gray-600"
-                        >
-                          <FiEye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openEdit(property)}
-                          title="Edit"
-                          className="p-2 rounded hover:bg-gray-100 text-blue-600"
-                        >
-                          <FiEdit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(propertyId)}
-                          title="Delete"
-                          className="p-2 rounded hover:bg-gray-100 text-red-500"
-                        >
-                          <FiTrash2 className="w-4 h-4" />
-                        </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-1 flex-col p-5">
+                    <div className="min-w-0">
+                      <div className="min-w-0">
+                        <h2 className="mt-1 text-lg font-semibold text-gray-900 break-words">
+                          {property.name || 'Untitled property'}
+                        </h2>
+                        <p className="mt-2 text-sm text-gray-500 line-clamp-2">
+                          {property.description || property.location || property.address || 'No description added.'}
+                        </p>
                       </div>
-                    </td>
-                  </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                      <div>
+                        <div className="text-xs font-medium uppercase text-gray-400">Category</div>
+                        <div className="mt-1 text-gray-700">{categoryName}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-medium uppercase text-gray-400">Type</div>
+                        <div className="mt-1 text-gray-700">{typeName}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-medium uppercase text-gray-400">Date</div>
+                        <div className="mt-1 text-gray-700">{createdDate}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[statusLabel] || 'bg-gray-100 text-gray-500'}`}>
+                        {statusLabel}
+                      </span>
+                    </div>
+
+                    <div className="mt-auto pt-5 flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleToggleStatus(property)}
+                        disabled={statusUpdatingIds.includes(propertyId)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg disabled:opacity-50 ${
+                          isActive
+                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        <FiPower className="w-4 h-4" />
+                        {statusUpdatingIds.includes(propertyId) ? 'Saving...' : isActive ? 'Active' : 'Unactive'}
+                      </button>
+                      <button
+                        onClick={() => handleToggleFeatured(property)}
+                        disabled={featuringIds.includes(propertyId)}
+                        title={isFeatured ? 'Set as unfeatured' : 'Set as featured'}
+                        className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg disabled:opacity-50 ${
+                          isFeatured
+                            ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        <FiStar className={`w-4 h-4 ${isFeatured ? 'fill-current' : ''}`} />
+                        {featuringIds.includes(propertyId) ? 'Saving...' : isFeatured ? 'Featured' : 'Feature'}
+                      </button>
+                      <button
+                        onClick={() => setViewingProperty(property)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      >
+                        <FiEye className="w-4 h-4" />
+                        View Details
+                      </button>
+                      {property.is_approved !== true && (
+                        <button
+                          onClick={() => handleApprove(property)}
+                          disabled={updatingIds.includes(propertyId)}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50"
+                        >
+                          <FiCheck className="w-4 h-4" />
+                          {updatingIds.includes(propertyId) ? 'Approving...' : 'Approval'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete(propertyId)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
+                      >
+                        <FiTrash2 className="w-4 h-4" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            );
+          })
+        )}
       </div>
       {meta && (
         <div className="flex items-center justify-between mt-4">
@@ -300,11 +529,40 @@ export default function PropertiesList() {
         </div>
       )}
 
+      {viewingProperty && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setViewingProperty(null)} />
+          <div className="relative z-10 w-full max-w-2xl mx-4 bg-white rounded-xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900">{viewingProperty.name || 'Property Details'}</h2>
+              <button onClick={() => setViewingProperty(null)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4 text-sm">
+              <p className="text-gray-600">{viewingProperty.description || 'No description added.'}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Location</div>
+                  <div className="mt-1 text-gray-800">{viewingProperty.location || viewingProperty.address || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Status</div>
+                  <div className="mt-1 text-gray-800">{getPropertyStatusLabel(viewingProperty)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PropertyModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onSave={handleSave}
-        initialData={editingProperty}
+        initialData={null}
       />
     </div>
   );
