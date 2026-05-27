@@ -11,7 +11,6 @@ export default function Sidebar() {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: FiHome },
     { name: 'Properties', path: '/properties', icon: FiPackage },
-    { name: 'World', path: '/world', icon: FiGlobe },
     {
       name: 'Property Setting',
       icon: FiPackage,
@@ -36,6 +35,8 @@ export default function Sidebar() {
         { name: 'Customers', path: '/users/customers' }
       ]
     },
+    { name: 'World', path: '/world', icon: FiGlobe },
+
   ];
 
   // Auto-expand menu if any of its submenu items are active

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { getCategories, deleteCategory, activateCategory, deactivateCategory } from '../../services/api';
+import { getCategories, deleteCategory, updateCategory } from '../../services/api';
 import CategoryForm from '../../features/properties/components/CategoryForm';
 
 const getCategoriesPayload = (response) => {
@@ -37,19 +37,24 @@ export default function CategoryList() {
   const [categories, setCategories] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   // Modal & Edit State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
 
-  const fetchCategories = async (page = 1) => {
+  const fetchCategories = async (page = 1, filter = statusFilter) => {
     try {
       setIsLoading(true);
-      const res = await getCategories({ page, limit: 10 });
+      const params = { page, limit: 10 };
+      if (filter !== 'all') {
+        params.status = filter;
+      }
+      const res = await getCategories(params);
       const { items, pagination: paginationData } = getCategoriesPayload(res);
       setCategories(items);
       setPagination(paginationData);
-    } catch (error) {
+    } catch {
       // Error handled by interceptor
     } finally {
       setIsLoading(false);
@@ -59,25 +64,35 @@ export default function CategoryList() {
   // Background refresh without loader
   const backgroundRefreshCategories = async () => {
     try {
-      const res = await getCategories({ page: pagination?.page ?? 1, limit: 10 });
+      const params = { page: pagination?.page ?? 1, limit: 10 };
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
+      const res = await getCategories(params);
       const { items, pagination: paginationData } = getCategoriesPayload(res);
       setCategories(items);
       setPagination(paginationData);
-    } catch (error) {
+    } catch {
       // Silent error handling - don't show loader
     }
   };
 
   useEffect(() => {
-    fetchCategories(1);
+    const initialFetch = setTimeout(() => {
+      fetchCategories(1);
+    }, 0);
     
     // Set up auto-refresh every 5 seconds
     const interval = setInterval(() => {
       backgroundRefreshCategories();
     }, 5000);
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearTimeout(initialFetch);
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   const openCreate = () => {
     setEditingCategory(null);
@@ -93,7 +108,7 @@ export default function CategoryList() {
 
   const handleSuccess = () => {
     closeModal();
-    fetchCategories(); // Refresh data table
+    fetchCategories(pagination?.page ?? 1); // Refresh data table
   };
 
   const handleDelete = (id) => {
@@ -114,8 +129,8 @@ export default function CategoryList() {
   const handleToggleStatus = (category) => {
     const isCurrentlyActive = category.status === true || category.status === 1 || category.status === '1' || String(category.status).toLowerCase() === 'active';
     const togglePromise = isCurrentlyActive 
-      ? deactivateCategory(getCategoryId(category))
-      : activateCategory(getCategoryId(category));
+      ? updateCategory(getCategoryId(category), { status: 'inactive' })
+      : updateCategory(getCategoryId(category), { status: 'active' });
 
     toast.promise(togglePromise, {
       loading: isCurrentlyActive ? 'Deactivating...' : 'Activating...',
@@ -128,6 +143,9 @@ export default function CategoryList() {
               : c
           )
         );
+        if (statusFilter !== 'all') {
+          backgroundRefreshCategories();
+        }
         return isCurrentlyActive ? 'Category deactivated!' : 'Category activated!';
       },
       error: null,
@@ -139,14 +157,19 @@ export default function CategoryList() {
   const total = pagination?.total ?? categories.length;
   const perPage = pagination?.limit ?? 10;
   const startIndex = (currentPage - 1) * perPage;
+  const filters = [
+    { label: 'All', value: 'all' },
+    { label: 'Active', value: 'active' },
+    { label: 'Inactive', value: 'inactive' },
+  ];
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Categories</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage property classification types.</p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Property Categories</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage property category classifications.</p>
         </div>
         <button onClick={openCreate} className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
           <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -154,6 +177,23 @@ export default function CategoryList() {
           </svg>
           Add Category
         </button>
+      </div>
+
+      <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+        {filters.map((filter) => (
+          <button
+            key={filter.value}
+            type="button"
+            onClick={() => setStatusFilter(filter.value)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              statusFilter === filter.value
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {filter.label}
+          </button>
+        ))}
       </div>
 
       {/* Modal Overlay */}

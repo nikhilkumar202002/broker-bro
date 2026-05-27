@@ -104,13 +104,15 @@ export const logout = () => {
   return Promise.resolve({ data: { success: true } });
 };
 
-// Categories
-export const createCategory = (data) => api.post('/categories', withUploadSupport(data));
-export const updateCategory = (id, data) => api.put(`/categories/${id}`, withUploadSupport(data));
-export const getCategories = (params) => api.get('/categories', { params });
-export const deleteCategory = (id) => api.delete(`/categories/${id}`);
-export const activateCategory = (id) => api.put(`/categories/${id}/activate`);
-export const deactivateCategory = (id) => api.put(`/categories/${id}/deactivate`);
+// Property Categories
+export const createCategory = (data) => api.post('/property-categories', withUploadSupport(data));
+export const updateCategory = (id, data) => api.put(`/property-categories/${id}`, withUploadSupport(data));
+export const getCategories = (params) => api.get('/property-categories', { params });
+export const getActiveCategories = (params) => getCategories({ ...(params || {}), status: 'active' });
+export const getInactiveCategories = (params) => getCategories({ ...(params || {}), status: 'inactive' });
+export const deleteCategory = (id) => api.delete(`/property-categories/${id}`);
+export const activateCategory = (id) => updateCategory(id, { status: 'active' });
+export const deactivateCategory = (id) => updateCategory(id, { status: 'inactive' });
 
 // Property Types
 export const createPropertyType = (data) => api.post('/property-types', withUploadSupport(data));

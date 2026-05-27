@@ -7,6 +7,11 @@ const getCategoryId = (category) => category?.id ?? category?._id;
 const getCategoryImageUrl = (category) =>
   category?.image_full_url ?? category?.full_image_url ?? category?.image_url ?? category?.image_path;
 
+const cleanPayload = (data) =>
+  Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== null && value !== '')
+  );
+
 export default function CategoryForm({ onSuccess, onClose, initialData }) {
   const navigate = useNavigate();
   
@@ -22,15 +27,19 @@ export default function CategoryForm({ onSuccess, onClose, initialData }) {
   // Populate form if we are editing an existing category
   useEffect(() => {
     if (initialData) {
-      setFormData({
-        name: initialData.name || '',
-        description: initialData.description || '',
-        status: initialData.status === true || initialData.status === 1 || initialData.status === '1' || String(initialData.status).toLowerCase() === 'active'
-          ? 'active'
-          : 'inactive',
-        image: null, // Don't pre-populate the file input for security, let user upload a new one if needed
-      });
-      setImagePreview(getCategoryImageUrl(initialData) || '');
+      const timer = setTimeout(() => {
+        setFormData({
+          name: initialData.name || '',
+          description: initialData.description || '',
+          status: initialData.status === true || initialData.status === 1 || initialData.status === '1' || String(initialData.status).toLowerCase() === 'active'
+            ? 'active'
+            : 'inactive',
+          image: null, // Don't pre-populate the file input for security, let user upload a new one if needed
+        });
+        setImagePreview(getCategoryImageUrl(initialData) || '');
+      }, 0);
+
+      return () => clearTimeout(timer);
     }
   }, [initialData]);
 
@@ -78,9 +87,10 @@ export default function CategoryForm({ onSuccess, onClose, initialData }) {
 
     // Check if we are updating (initialData exists) or creating
     const categoryId = getCategoryId(initialData);
+    const payload = cleanPayload(formData);
     const apiPromise = initialData 
-      ? updateCategory(categoryId, formData)
-      : createCategory(formData);
+      ? updateCategory(categoryId, payload)
+      : createCategory(payload);
 
     toast.promise(apiPromise, {
       loading: initialData ? 'Updating category...' : 'Saving category...',
