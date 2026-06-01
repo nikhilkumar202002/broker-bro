@@ -36,11 +36,13 @@ const emptyFormData = () => ({
   amenities_ids: [],
 });
 
-const inputClass = 'w-full h-10 px-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white';
-const textareaClass = 'w-full h-24 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none';
+const inputClass =
+  'w-full h-11 px-3 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none bg-white disabled:bg-gray-50 disabled:text-gray-400';
+const textareaClass =
+  'w-full h-28 px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none resize-none';
 const fileInputClass =
-  'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-blue-700';
-const labelClass = 'block text-xs font-medium text-gray-600 mb-1';
+  'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-blue-700 hover:file:bg-blue-100 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none';
+const labelClass = 'block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5';
 
 const getPayload = (response) => response?.data?.data ?? response?.data ?? response ?? {};
 
@@ -315,9 +317,20 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     }));
   };
 
+  const removeMediaFile = (key, index) => {
+    setFormData((current) => ({
+      ...current,
+      [key]: Array.isArray(current[key]) ? current[key].filter((_, itemIndex) => itemIndex !== index) : [],
+    }));
+    setMediaInputKey((current) => current + 1);
+  };
+
   const renderTextInput = (key, label, props = {}) => (
     <div>
-      <label className={labelClass}>{label}</label>
+      <label className={labelClass}>
+        {label}
+        {props.required && <span className="ml-1 text-red-500">*</span>}
+      </label>
       <input
         {...props}
         value={formData[key]}
@@ -327,9 +340,12 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     </div>
   );
 
-  const renderSection = (title, children) => (
-    <section className="border border-gray-100 rounded-xl p-4 bg-white">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4">{title}</h3>
+  const renderSection = (title, children, description) => (
+    <section className="rounded-xl border border-gray-100 bg-white p-4 md:p-5 shadow-sm">
+      <div className="mb-4 border-b border-gray-100 pb-3">
+        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+        {description && <p className="mt-1 text-xs text-gray-500">{description}</p>}
+      </div>
       {children}
     </section>
   );
@@ -348,11 +364,11 @@ export default function CreateProperty({ onSuccess, onCancel }) {
       </div>
     );
 
-  const renderAssetCards = (items, type) =>
+  const renderAssetCards = (items, type, fieldKey) =>
     items.length > 0 && (
       <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {items.map((item) => (
-          <div key={item.url} className="overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+        {items.map((item, index) => (
+          <div key={item.url} className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
             <div className="aspect-video bg-gray-100">
               {type === 'image' ? (
                 <img src={item.url} alt={item.name} className="h-full w-full object-cover" />
@@ -364,7 +380,16 @@ export default function CreateProperty({ onSuccess, onCancel }) {
               <div className="truncate text-xs font-medium text-gray-700" title={item.name}>
                 {item.name}
               </div>
-              <div className="text-[11px] text-gray-400">{formatFileSize(item.size)}</div>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-gray-400">{formatFileSize(item.size)}</span>
+                <button
+                  type="button"
+                  onClick={() => removeMediaFile(fieldKey, index)}
+                  className="text-[11px] font-medium text-red-500 hover:text-red-600"
+                >
+                  Remove
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -407,18 +432,27 @@ export default function CreateProperty({ onSuccess, onCancel }) {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Add Property</h1>
-        <p className="text-sm text-gray-500 mt-1">Fill the details below to create a property listing.</p>
+    <div className="max-w-6xl mx-auto space-y-5">
+      <div className="rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Add Property</h1>
+            <p className="text-sm text-gray-500 mt-1">Create a complete listing with location, pricing, features, and media.</p>
+          </div>
+          <div className="inline-flex w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+            New listing
+          </div>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 md:p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 shadow-sm">
+        <div className="p-4 md:p-6 space-y-5">
           {renderSection(
             'Property Basic Details',
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {renderTextInput('name', 'Name', { required: true, placeholder: 'Property name' })}
+              <div className="md:col-span-2">
+                {renderTextInput('name', 'Name', { required: true, placeholder: 'Property name' })}
+              </div>
               {renderTextInput('location', 'Location', { placeholder: 'Landmark or coordinates' })}
               {renderTextInput('address', 'Address', { placeholder: 'Street address' })}
               <div className="md:col-span-3">
@@ -430,14 +464,15 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                   placeholder="Short description"
                 />
               </div>
-            </div>
+            </div>,
+            'Start with the details buyers will recognize first.'
           )}
 
           {renderSection(
             'Property Classification',
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className={labelClass}>Category</label>
+                <label className={labelClass}>Category <span className="text-red-500">*</span></label>
                 <select
                   value={formData.property_category_ids}
                   onChange={(event) => handleSelect(event, 'property_category_ids')}
@@ -453,7 +488,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Property Type</label>
+                <label className={labelClass}>Property Type <span className="text-red-500">*</span></label>
                 <select
                   value={formData.property_type_ids}
                   onChange={(event) => handleSelect(event, 'property_type_ids')}
@@ -468,7 +503,8 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                   ))}
                 </select>
               </div>
-            </div>
+            </div>,
+            'The selected type controls which pricing and specification fields are shown.'
           )}
 
           {!hidesLocationDetails &&
@@ -518,7 +554,8 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                     ))}
                   </select>
                 </div>
-              </div>
+              </div>,
+              'Use these fields when the selected property type needs regional details.'
             )}
 
           {renderSection(
@@ -529,7 +566,8 @@ export default function CreateProperty({ onSuccess, onCancel }) {
               {isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
               {!isPlotType && !isBuildingType && renderTextInput('total_cent', 'Total Cent', { type: 'number', min: '0' })}
               {renderTextInput('amount', 'Amount', { type: 'number', min: '0', required: true })}
-            </div>
+            </div>,
+            isPlotType ? 'For plots, amount is calculated from per cent and total cent when both values are entered.' : 'Add the size and final listing amount.'
           )}
 
           {!isPlotType &&
@@ -542,7 +580,8 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                 {renderTextInput('no_of_kitchen', 'Kitchen', { type: 'number', min: '0' })}
                 {renderTextInput('no_of_halls', 'Halls', { type: 'number', min: '0' })}
                 {!isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
-              </div>
+              </div>,
+              'Optional room and layout details for built properties.'
             )}
 
           {renderSection(
@@ -572,14 +611,15 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                 </select>
                 {renderSelectedChips('facilities_ids', facilities)}
               </div>
-            </div>
+            </div>,
+            'Pick multiple items one at a time; selected items appear below each field.'
           )}
 
           {renderSection(
             'Media Uploads',
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className={labelClass}>Property Images</label>
+                <label className={labelClass}>Property Images <span className="text-red-500">*</span></label>
                 <input
                   key={`images-${mediaInputKey}`}
                   type="file"
@@ -590,7 +630,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                   className={fileInputClass}
                 />
                 <div className="text-xs text-gray-500 mt-1">{formData.property_images_files.length} file(s) selected</div>
-                {renderAssetCards(imagePreviews, 'image')}
+                {renderAssetCards(imagePreviews, 'image', 'property_images_files')}
               </div>
               <div>
                 <label className={labelClass}>Property Videos</label>
@@ -603,19 +643,22 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                   className={fileInputClass}
                 />
                 <div className="text-xs text-gray-500 mt-1">{formData.property_videos_files.length} file(s) selected</div>
-                {renderAssetCards(videoPreviews, 'video')}
+                {renderAssetCards(videoPreviews, 'video', 'property_videos_files')}
               </div>
-            </div>
+            </div>,
+            'Images are required. Videos are optional and limited to two files.'
           )}
 
           {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
         </div>
 
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-end gap-3">
+        <div className="sticky bottom-0 z-10 px-4 md:px-6 py-4 bg-white/95 backdrop-blur border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-gray-500">Fields marked with <span className="text-red-500">*</span> are required.</p>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
           <button
             type="button"
             onClick={onCancel || handleReset}
-            className="w-full sm:w-auto px-5 py-2.5 border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50"
+            className="w-full sm:w-auto px-5 py-2.5 border border-gray-200 bg-white text-gray-700 font-medium rounded-lg hover:bg-gray-50"
             disabled={submitting}
           >
             {onCancel ? 'Cancel' : 'Reset'}
@@ -627,6 +670,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
           >
             {submitting ? 'Submitting...' : 'Add Property'}
           </button>
+          </div>
         </div>
       </form>
     </div>
