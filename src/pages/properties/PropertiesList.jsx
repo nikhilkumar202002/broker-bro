@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import PropertyModal from '../../components/ui/PropertyModal';
-import { createProperty, getAmenities, getCategories, getFacilities, getProperties, getPropertyTypes, getPropertyStatuses, approveProperty, featureProperty, unfeatureProperty, updatePropertyStatus } from '../../services/api';
+import CreateProperty from '../../features/properties/components/CreateProperty';
+import { getCategories, getProperties, getPropertyTypes, getPropertyStatuses, approveProperty, featureProperty, unfeatureProperty, updatePropertyStatus } from '../../services/api';
 import toast from 'react-hot-toast';
 import { FiCheck, FiTrash2, FiEye, FiStar, FiPower, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
@@ -103,30 +103,6 @@ const getPropertyStatusesPayload = (response) => {
 
   if (Array.isArray(payload?.propertyStatuses)) return payload.propertyStatuses;
   if (Array.isArray(payload?.statuses)) return payload.statuses;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload)) return payload;
-
-  return [];
-};
-
-const getAmenitiesPayload = (response) => {
-  const payload = response?.data?.data ?? response?.data ?? {};
-
-  if (Array.isArray(payload?.amenities)) return payload.amenities;
-  if (Array.isArray(payload?.items)) return payload.items;
-  if (Array.isArray(payload?.results)) return payload.results;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload)) return payload;
-
-  return [];
-};
-
-const getFacilitiesPayload = (response) => {
-  const payload = response?.data?.data ?? response?.data ?? {};
-
-  if (Array.isArray(payload?.facilities)) return payload.facilities;
-  if (Array.isArray(payload?.items)) return payload.items;
-  if (Array.isArray(payload?.results)) return payload.results;
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload)) return payload;
 
@@ -250,8 +226,6 @@ export default function PropertiesList() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [typeOptions, setTypeOptions] = useState([]);
-  const [amenityOptions, setAmenityOptions] = useState([]);
-  const [facilityOptions, setFacilityOptions] = useState([]);
   const [statusOptions, setStatusOptions] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [viewingProperty, setViewingProperty] = useState(null);
@@ -309,17 +283,13 @@ export default function PropertiesList() {
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        const [categoriesRes, typesRes, amenitiesRes, facilitiesRes] = await Promise.all([
+        const [categoriesRes, typesRes] = await Promise.all([
           getCategories({ status: 'active', limit: 100 }),
           getPropertyTypes({ status: 'active', limit: 100 }),
-          getAmenities({ status: 'active', limit: 100 }),
-          getFacilities({ status: 'active', limit: 100 }),
         ]);
 
         setCategoryOptions(getCategoriesPayload(categoriesRes));
         setTypeOptions(getPropertyTypesPayload(typesRes));
-        setAmenityOptions(getAmenitiesPayload(amenitiesRes));
-        setFacilityOptions(getFacilitiesPayload(facilitiesRes));
       } catch (e) {
         console.error('Failed to load property filters', e);
       }
@@ -345,13 +315,7 @@ export default function PropertiesList() {
     setProperties((prev) => prev.filter((p) => getPropertyId(p) !== id));
   };
 
-  const handleSave = async (formData) => {
-    await toast.promise(createProperty(formData), {
-      loading: 'Creating property...',
-      success: 'Property created successfully',
-      error: 'Failed to create property',
-    });
-
+  const handleCreateSuccess = () => {
     setModalOpen(false);
     fetchProperties(currentPage);
   };
@@ -825,16 +789,14 @@ export default function PropertiesList() {
         </div>
       )}
 
-      <PropertyModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSave={handleSave}
-        initialData={null}
-        categoryOptions={categoryOptions}
-        typeOptions={typeOptions}
-        amenitiesOptions={amenityOptions}
-        facilitiesOptions={facilityOptions}
-      />
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModalOpen(false)} />
+          <div className="relative z-10 w-full max-w-6xl mx-4 bg-gray-50 rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto p-4 md:p-6">
+            <CreateProperty onSuccess={handleCreateSuccess} onCancel={() => setModalOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

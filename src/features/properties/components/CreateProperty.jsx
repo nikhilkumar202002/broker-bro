@@ -79,7 +79,13 @@ const getOptionName = (options, id) => {
   return found?.name || id;
 };
 
-export default function CreateProperty() {
+const formatFileSize = (size) => {
+  if (!Number.isFinite(size)) return '';
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+export default function CreateProperty({ onSuccess, onCancel }) {
   const [formData, setFormData] = useState(emptyFormData());
   const [categories, setCategories] = useState([]);
   const [propertyTypes, setPropertyTypes] = useState([]);
@@ -170,6 +176,36 @@ export default function CreateProperty() {
       mounted = false;
     };
   }, [formData.country_id]);
+
+  const imagePreviews = useMemo(
+    () => formData.property_images_files.map((file) => ({
+      name: file.name,
+      size: file.size,
+      url: URL.createObjectURL(file),
+    })),
+    [formData.property_images_files]
+  );
+
+  useEffect(() => {
+    return () => {
+      imagePreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [imagePreviews]);
+
+  const videoPreviews = useMemo(
+    () => formData.property_videos_files.map((file) => ({
+      name: file.name,
+      size: file.size,
+      url: URL.createObjectURL(file),
+    })),
+    [formData.property_videos_files]
+  );
+
+  useEffect(() => {
+    return () => {
+      videoPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [videoPreviews]);
 
   const visibleDistricts = useMemo(() => {
     if (!formData.state_id) return allDistricts;
@@ -264,7 +300,7 @@ export default function CreateProperty() {
     if (!value) return;
 
     setFormData((current) => {
-      const selected = Array.isArray(current[key]) ? current[key] : [];
+      const selected = Array.isArray(current[key]) ? current[key].map(String) : [];
       if (selected.includes(value)) return current;
       return { ...current, [key]: [...selected, value] };
     });
@@ -312,6 +348,29 @@ export default function CreateProperty() {
       </div>
     );
 
+  const renderAssetCards = (items, type) =>
+    items.length > 0 && (
+      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {items.map((item) => (
+          <div key={item.url} className="overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+            <div className="aspect-video bg-gray-100">
+              {type === 'image' ? (
+                <img src={item.url} alt={item.name} className="h-full w-full object-cover" />
+              ) : (
+                <video src={item.url} className="h-full w-full object-cover" controls />
+              )}
+            </div>
+            <div className="min-w-0 px-2 py-1.5">
+              <div className="truncate text-xs font-medium text-gray-700" title={item.name}>
+                {item.name}
+              </div>
+              <div className="text-[11px] text-gray-400">{formatFileSize(item.size)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -324,7 +383,7 @@ export default function CreateProperty() {
     setError(null);
 
     try {
-      await createProperty({
+      const response = await createProperty({
         ...formData,
         property_category_ids: formData.property_category_ids ? [formData.property_category_ids] : [],
         property_type_ids: formData.property_type_ids ? [formData.property_type_ids] : [],
@@ -332,6 +391,7 @@ export default function CreateProperty() {
       toast.success('Property created successfully');
       setFormData(emptyFormData());
       setMediaInputKey((current) => current + 1);
+      onSuccess?.(response);
     } catch (e) {
       console.error('Create property failed', e);
       setError(e?.response?.data?.message || e?.message || 'Failed to create property.');
@@ -530,6 +590,7 @@ export default function CreateProperty() {
                   className={fileInputClass}
                 />
                 <div className="text-xs text-gray-500 mt-1">{formData.property_images_files.length} file(s) selected</div>
+                {renderAssetCards(imagePreviews, 'image')}
               </div>
               <div>
                 <label className={labelClass}>Property Videos</label>
@@ -538,11 +599,11 @@ export default function CreateProperty() {
                   type="file"
                   accept="video/*"
                   multiple
-                  required
                   onChange={handleVideosChange}
                   className={fileInputClass}
                 />
                 <div className="text-xs text-gray-500 mt-1">{formData.property_videos_files.length} file(s) selected</div>
+                {renderAssetCards(videoPreviews, 'video')}
               </div>
             </div>
           )}
@@ -553,11 +614,11 @@ export default function CreateProperty() {
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-end gap-3">
           <button
             type="button"
-            onClick={handleReset}
+            onClick={onCancel || handleReset}
             className="w-full sm:w-auto px-5 py-2.5 border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50"
             disabled={submitting}
           >
-            Reset
+            {onCancel ? 'Cancel' : 'Reset'}
           </button>
           <button
             type="submit"
