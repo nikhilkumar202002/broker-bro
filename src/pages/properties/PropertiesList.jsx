@@ -1,10 +1,46 @@
 import { useState, useEffect } from 'react';
 import PropertyModal from '../../components/ui/PropertyModal';
-import { createProperty, getCategories, getProperties, getPropertyTypes, getPropertyStatuses, approveProperty, featureProperty, unfeatureProperty, updatePropertyStatus } from '../../services/api';
+import { createProperty, getAmenities, getCategories, getFacilities, getProperties, getPropertyTypes, getPropertyStatuses, approveProperty, featureProperty, unfeatureProperty, updatePropertyStatus } from '../../services/api';
 import toast from 'react-hot-toast';
-import { FiCheck, FiTrash2, FiEye, FiStar, FiPower } from 'react-icons/fi';
+import { FiCheck, FiTrash2, FiEye, FiStar, FiPower, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 const initialProperties = [];
+
+const PropertyCardSkeleton = () => (
+  <article className="h-full bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+    <div className="flex flex-col sm:flex-row h-full animate-pulse">
+      <div className="sm:w-1/2 shrink-0 self-stretch bg-gray-100">
+        <div className="h-48 sm:h-full min-h-56 w-full bg-gray-200" />
+      </div>
+
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="h-5 w-2/3 rounded bg-gray-200" />
+          <div className="h-5 w-20 shrink-0 rounded-full bg-gray-200" />
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="h-3 w-full rounded bg-gray-100" />
+          <div className="h-3 w-4/5 rounded bg-gray-100" />
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="space-y-2">
+              <div className="h-3 w-16 rounded bg-gray-100" />
+              <div className="h-4 w-24 rounded bg-gray-200" />
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-auto pt-5 flex flex-wrap gap-2">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="h-9 w-24 rounded-lg bg-gray-100" />
+          ))}
+        </div>
+      </div>
+    </div>
+  </article>
+);
 
 const statusStyles = {
   Approved: 'bg-green-100 text-green-700',
@@ -41,6 +77,8 @@ const getCategoriesPayload = (response) => {
 
   if (Array.isArray(payload?.propertyCategories)) return payload.propertyCategories;
   if (Array.isArray(payload?.categories)) return payload.categories;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload)) return payload;
 
@@ -51,6 +89,9 @@ const getPropertyTypesPayload = (response) => {
   const payload = response?.data?.data ?? response?.data ?? {};
 
   if (Array.isArray(payload?.propertyTypes)) return payload.propertyTypes;
+  if (Array.isArray(payload?.types)) return payload.types;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload)) return payload;
 
@@ -62,6 +103,30 @@ const getPropertyStatusesPayload = (response) => {
 
   if (Array.isArray(payload?.propertyStatuses)) return payload.propertyStatuses;
   if (Array.isArray(payload?.statuses)) return payload.statuses;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+
+  return [];
+};
+
+const getAmenitiesPayload = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? {};
+
+  if (Array.isArray(payload?.amenities)) return payload.amenities;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+
+  return [];
+};
+
+const getFacilitiesPayload = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? {};
+
+  if (Array.isArray(payload?.facilities)) return payload.facilities;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload)) return payload;
 
@@ -90,10 +155,76 @@ const getPropertyImageUrl = (property) => {
   return image.image_full_url || image.full_image_url || image.image_url || image.url || image.path || '';
 };
 
+const getImageItemUrl = (image) => {
+  if (!image || typeof image === 'string') return image || '';
+  return image.image_full_url || image.full_image_url || image.image_url || image.url || image.path || '';
+};
+
+const getPropertyImageUrls = (property) => {
+  const candidates = [
+    property?.property_images,
+    property?.images,
+    property?.gallery,
+    property?.photos,
+  ].filter(Array.isArray).flat();
+
+  const urls = candidates.map(getImageItemUrl).filter(Boolean);
+  const primaryUrl = getPropertyImageUrl(property);
+
+  return Array.from(new Set([primaryUrl, ...urls].filter(Boolean)));
+};
+
 const getPropertyStatusLabel = (property) => {
   if (property?.is_approved === true) return 'Approved';
   if (property?.is_approved === false) return 'Rejected';
   return property?.property_status?.name || property?.property_status || 'Pending';
+};
+
+const formatCurrency = (value) => {
+  if (value === null || typeof value === 'undefined' || value === '') return '-';
+  const numberValue = Number(value);
+  if (Number.isNaN(numberValue)) return value;
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(numberValue);
+};
+
+const formatValue = (value, suffix = '') => {
+  if (value === null || typeof value === 'undefined' || value === '') return '-';
+  return `${value}${suffix}`;
+};
+
+const joinNames = (items) => {
+  if (!Array.isArray(items) || items.length === 0) return '-';
+  return items.map((item) => item?.name ?? item).filter(Boolean).join(', ') || '-';
+};
+
+const getAreaDisplay = (property) => {
+  const typeNames = (property?.property_types || property?.types || [])
+    .map((type) => type?.name ?? type)
+    .join(' ')
+    .toLowerCase();
+
+  if (typeNames.includes('plot')) {
+    if (property?.total_cent) return formatValue(property.total_cent, ' cent');
+
+    const amount = Number(property?.amount);
+    const perCent = Number(property?.per_cent);
+    if (amount > 0 && perCent > 0) {
+      const calculatedCent = amount / perCent;
+      return `${Number.isInteger(calculatedCent) ? calculatedCent : calculatedCent.toFixed(2)} cent`;
+    }
+
+    if (property?.sq_feet) return formatValue(property.sq_feet, ' sq ft');
+    return '-';
+  }
+
+  if (property?.sq_feet) return formatValue(property.sq_feet, ' sq ft');
+  if (property?.total_cent) return formatValue(property.total_cent, ' cent');
+
+  return '-';
 };
 
 const isPropertyFeatured = (property) =>
@@ -119,6 +250,8 @@ export default function PropertiesList() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [typeOptions, setTypeOptions] = useState([]);
+  const [amenityOptions, setAmenityOptions] = useState([]);
+  const [facilityOptions, setFacilityOptions] = useState([]);
   const [statusOptions, setStatusOptions] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [viewingProperty, setViewingProperty] = useState(null);
@@ -128,6 +261,7 @@ export default function PropertiesList() {
   const [updatingIds, setUpdatingIds] = useState([]);
   const [featuringIds, setFeaturingIds] = useState([]);
   const [statusUpdatingIds, setStatusUpdatingIds] = useState([]);
+  const [galleryIndexes, setGalleryIndexes] = useState({});
 
   const getPropertyOptionKeys = (items) =>
     (items || []).flatMap((item) => [
@@ -175,13 +309,17 @@ export default function PropertiesList() {
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        const [categoriesRes, typesRes] = await Promise.all([
+        const [categoriesRes, typesRes, amenitiesRes, facilitiesRes] = await Promise.all([
           getCategories({ status: 'active', limit: 100 }),
           getPropertyTypes({ status: 'active', limit: 100 }),
+          getAmenities({ status: 'active', limit: 100 }),
+          getFacilities({ status: 'active', limit: 100 }),
         ]);
 
         setCategoryOptions(getCategoriesPayload(categoriesRes));
         setTypeOptions(getPropertyTypesPayload(typesRes));
+        setAmenityOptions(getAmenitiesPayload(amenitiesRes));
+        setFacilityOptions(getFacilitiesPayload(facilitiesRes));
       } catch (e) {
         console.error('Failed to load property filters', e);
       }
@@ -301,6 +439,14 @@ export default function PropertiesList() {
     }
   };
 
+  const handleGalleryStep = (propertyId, imageCount, step) => {
+    setGalleryIndexes((prev) => {
+      const currentIndex = prev[propertyId] ?? 0;
+      const nextIndex = (currentIndex + step + imageCount) % imageCount;
+      return { ...prev, [propertyId]: nextIndex };
+    });
+  };
+
   const currentPage = meta?.page ?? meta?.current_page ?? 1;
   const totalPages = meta?.totalPages ?? meta?.last_page ?? 1;
   const total = meta?.total ?? properties.length;
@@ -372,9 +518,7 @@ export default function PropertiesList() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {loading ? (
-          <div className="xl:col-span-2 bg-white border border-gray-100 rounded-xl px-5 py-10 text-center text-sm text-gray-400 shadow-sm">
-            Loading properties...
-          </div>
+          Array.from({ length: 4 }).map((_, index) => <PropertyCardSkeleton key={index} />)
         ) : error ? (
           <div className="xl:col-span-2 bg-white border border-red-100 rounded-xl px-5 py-10 text-center text-sm text-red-500 shadow-sm">
             {error}
@@ -389,9 +533,12 @@ export default function PropertiesList() {
             const statusLabel = getPropertyStatusLabel(property);
             const isFeatured = isPropertyFeatured(property);
             const isActive = isPropertyActive(property);
-            const imageUrl = getPropertyImageUrl(property);
+            const imageUrls = getPropertyImageUrls(property);
+            const activeImageIndex = Math.min(galleryIndexes[propertyId] ?? 0, Math.max(imageUrls.length - 1, 0));
+            const imageUrl = imageUrls[activeImageIndex];
             const categoryName = ((property.property_categories || property.categories || [])[0]?.name) || '-';
             const typeName = (property.property_types && property.property_types[0] && property.property_types[0].name) || '-';
+            const propertyAmount = property.total_amount ?? property.amount;
             const createdDate = property.createdAt || property.created_at
               ? new Date(property.createdAt ?? property.created_at).toLocaleDateString()
               : '-';
@@ -402,13 +549,38 @@ export default function PropertiesList() {
                 className="h-full bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden transition-colors hover:border-blue-100"
               >
                 <div className="flex flex-col sm:flex-row h-full">
-                  <div className="sm:w-1/2 shrink-0 self-stretch bg-gray-100">
+                  <div className="relative sm:w-1/2 shrink-0 self-stretch bg-gray-100">
                     {imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={property.name || 'Property'}
-                        className="h-48 sm:h-full min-h-56 w-full object-cover"
-                      />
+                      <>
+                        <img
+                          src={imageUrl}
+                          alt={property.name || 'Property'}
+                          className="h-48 sm:h-full min-h-56 w-full object-cover"
+                        />
+                        {imageUrls.length > 1 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleGalleryStep(propertyId, imageUrls.length, -1)}
+                              className="absolute left-3 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow hover:bg-white"
+                              title="Previous image"
+                            >
+                              <FiChevronLeft className="h-5 w-5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleGalleryStep(propertyId, imageUrls.length, 1)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow hover:bg-white"
+                              title="Next image"
+                            >
+                              <FiChevronRight className="h-5 w-5" />
+                            </button>
+                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white">
+                              {activeImageIndex + 1} / {imageUrls.length}
+                            </div>
+                          </>
+                        )}
+                      </>
                     ) : (
                       <div className="h-48 sm:h-full min-h-56 w-full flex items-center justify-center text-sm text-gray-400">
                         No image
@@ -418,10 +590,15 @@ export default function PropertiesList() {
 
                   <div className="flex flex-1 flex-col p-5">
                     <div className="min-w-0">
-                      <div className="min-w-0">
-                        <h2 className="mt-1 text-lg font-semibold text-gray-900 break-words">
+                      <div className="flex items-start justify-between gap-3">
+                        <h2 className="min-w-0 text-lg font-semibold text-gray-900 break-words">
                           {property.name || 'Untitled property'}
                         </h2>
+                        <span className={`shrink-0 inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[statusLabel] || 'bg-gray-100 text-gray-500'}`}>
+                          {statusLabel}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
                         <p className="mt-2 text-sm text-gray-500 line-clamp-2">
                           {property.description || property.location || property.address || 'No description added.'}
                         </p>
@@ -443,13 +620,24 @@ export default function PropertiesList() {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[statusLabel] || 'bg-gray-100 text-gray-500'}`}>
-                        {statusLabel}
-                      </span>
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                      <div>
+                        <div className="text-xs font-medium uppercase text-gray-400">Location</div>
+                        <div className="mt-1 text-gray-700">{property.location || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-medium uppercase text-gray-400">Price</div>
+                        <div className="mt-1 font-semibold text-gray-900">{formatCurrency(propertyAmount)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-medium uppercase text-gray-400">Area</div>
+                        <div className="mt-1 text-gray-700">
+                          {getAreaDisplay(property)}
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="mt-auto pt-5 flex flex-wrap items-center justify-end gap-2">
+                    <div className="mt-auto pt-5 flex flex-wrap items-center justify-start gap-2">
                       <button
                         onClick={() => handleToggleStatus(property)}
                         disabled={statusUpdatingIds.includes(propertyId)}
@@ -532,7 +720,7 @@ export default function PropertiesList() {
       {viewingProperty && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setViewingProperty(null)} />
-          <div className="relative z-10 w-full max-w-2xl mx-4 bg-white rounded-xl shadow-2xl overflow-hidden">
+          <div className="relative z-10 w-full max-w-4xl mx-4 bg-white rounded-xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900">{viewingProperty.name || 'Property Details'}</h2>
               <button onClick={() => setViewingProperty(null)} className="text-gray-400 hover:text-gray-600">
@@ -541,16 +729,95 @@ export default function PropertiesList() {
                 </svg>
               </button>
             </div>
-            <div className="p-6 space-y-4 text-sm">
+            <div className="p-6 space-y-6 text-sm">
+              {getPropertyImageUrls(viewingProperty).length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {getPropertyImageUrls(viewingProperty).map((url) => (
+                    <img
+                      key={url}
+                      src={url}
+                      alt={viewingProperty.name || 'Property'}
+                      className="h-36 w-full rounded-lg object-cover border border-gray-100"
+                    />
+                  ))}
+                </div>
+              )}
+
               <p className="text-gray-600">{viewingProperty.description || 'No description added.'}</p>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <div className="text-xs font-medium uppercase text-gray-400">Location</div>
                   <div className="mt-1 text-gray-800">{viewingProperty.location || viewingProperty.address || '-'}</div>
                 </div>
                 <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Address</div>
+                  <div className="mt-1 text-gray-800">{viewingProperty.address || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Category</div>
+                  <div className="mt-1 text-gray-800">{joinNames(viewingProperty.property_categories || viewingProperty.categories)}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Type</div>
+                  <div className="mt-1 text-gray-800">{joinNames(viewingProperty.property_types || viewingProperty.types)}</div>
+                </div>
+                <div>
                   <div className="text-xs font-medium uppercase text-gray-400">Status</div>
                   <div className="mt-1 text-gray-800">{getPropertyStatusLabel(viewingProperty)}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Approval</div>
+                  <div className="mt-1 text-gray-800">{viewingProperty.is_approved === true ? 'Approved' : viewingProperty.is_approved === false ? 'Rejected' : 'Pending'}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Amount</div>
+                  <div className="mt-1 text-gray-800">{formatCurrency(viewingProperty.amount)}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Total Amount</div>
+                  <div className="mt-1 text-gray-800">{formatCurrency(viewingProperty.total_amount)}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Commission</div>
+                  <div className="mt-1 text-gray-800">{formatValue(viewingProperty.commission_percentage, '%')}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Cent / Sq Ft</div>
+                  <div className="mt-1 text-gray-800">
+                    {[
+                      viewingProperty.per_cent ? `Per cent: ${formatCurrency(viewingProperty.per_cent)}` : null,
+                      `Area: ${getAreaDisplay(viewingProperty)}`,
+                    ].filter(Boolean).join(' | ') || '-'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Rooms</div>
+                  <div className="mt-1 text-gray-800">
+                    {[
+                      viewingProperty.bhk ? `${viewingProperty.bhk} BHK` : null,
+                      viewingProperty.no_of_bedrooms ? `${viewingProperty.no_of_bedrooms} bedrooms` : null,
+                      viewingProperty.no_of_bathrooms ? `${viewingProperty.no_of_bathrooms} bathrooms` : null,
+                      viewingProperty.no_of_kitchen ? `${viewingProperty.no_of_kitchen} kitchen` : null,
+                      viewingProperty.no_of_halls ? `${viewingProperty.no_of_halls} halls` : null,
+                    ].filter(Boolean).join(', ') || '-'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Featured</div>
+                  <div className="mt-1 text-gray-800">{isPropertyFeatured(viewingProperty) ? 'Yes' : 'No'}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Amenities</div>
+                  <div className="mt-1 text-gray-800">{joinNames(viewingProperty.amenities)}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Facilities</div>
+                  <div className="mt-1 text-gray-800">{joinNames(viewingProperty.facilities)}</div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium uppercase text-gray-400">Videos</div>
+                  <div className="mt-1 text-gray-800">{Array.isArray(viewingProperty.property_videos) ? viewingProperty.property_videos.length : 0}</div>
                 </div>
               </div>
             </div>
@@ -563,6 +830,10 @@ export default function PropertiesList() {
         onClose={() => setModalOpen(false)}
         onSave={handleSave}
         initialData={null}
+        categoryOptions={categoryOptions}
+        typeOptions={typeOptions}
+        amenitiesOptions={amenityOptions}
+        facilitiesOptions={facilityOptions}
       />
     </div>
   );

@@ -1,116 +1,357 @@
-import React from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { FiCheckCircle, FiClock, FiHome, FiList, FiMapPin, FiStar, FiXCircle } from 'react-icons/fi';
+import { getProperties } from '../../services/api';
+
+const getPropertiesPayload = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? {};
+
+  if (Array.isArray(payload?.properties)) {
+    return {
+      items: payload.properties,
+      pagination: payload.pagination ?? null,
+    };
+  }
+
+  if (Array.isArray(payload)) {
+    return { items: payload, pagination: null };
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return { items: payload.data, pagination: payload.pagination ?? payload.meta ?? null };
+  }
+
+  return { items: [], pagination: null };
+};
+
+const getPayloadTotal = (response) => {
+  const { items, pagination } = getPropertiesPayload(response);
+  return pagination?.total ?? pagination?.count ?? pagination?.total_count ?? items.length;
+};
+
+const getPropertyId = (property) => property?.id ?? property?._id;
+
+const getPropertyStatusLabel = (property) => {
+  if (property?.is_approved === true) return 'Approved';
+  if (property?.is_approved === false) return 'Rejected';
+  return property?.property_status?.name || property?.property_status || 'Pending';
+};
+
+const formatCurrency = (value) => {
+  if (value === null || typeof value === 'undefined' || value === '') return '-';
+  const numberValue = Number(value);
+  if (Number.isNaN(numberValue)) return value;
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(numberValue);
+};
+
+const formatValue = (value, suffix = '') => {
+  if (value === null || typeof value === 'undefined' || value === '') return '-';
+  return `${value}${suffix}`;
+};
+
+const joinNames = (items) => {
+  if (!Array.isArray(items) || items.length === 0) return '-';
+  return items.map((item) => item?.name ?? item).filter(Boolean).join(', ') || '-';
+};
+
+const getAreaDisplay = (property) => {
+  const typeNames = (property?.property_types || property?.types || [])
+    .map((type) => type?.name ?? type)
+    .join(' ')
+    .toLowerCase();
+
+  if (typeNames.includes('plot')) {
+    if (property?.total_cent) return formatValue(property.total_cent, ' cent');
+
+    const amount = Number(property?.amount);
+    const perCent = Number(property?.per_cent);
+    if (amount > 0 && perCent > 0) {
+      const calculatedCent = amount / perCent;
+      return `${Number.isInteger(calculatedCent) ? calculatedCent : calculatedCent.toFixed(2)} cent`;
+    }
+
+    if (property?.sq_feet) return formatValue(property.sq_feet, ' sq ft');
+    return '-';
+  }
+
+  if (property?.sq_feet) return formatValue(property.sq_feet, ' sq ft');
+  if (property?.total_cent) return formatValue(property.total_cent, ' cent');
+
+  return '-';
+};
+
+const isPropertyFeatured = (property) =>
+  property?.is_featured === true ||
+  property?.is_featured === 1 ||
+  property?.is_featured === '1' ||
+  String(property?.is_featured).toLowerCase() === 'true' ||
+  String(property?.featured).toLowerCase() === 'true';
+
+const statusStyles = {
+  Approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Published: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  Pending: 'bg-amber-50 text-amber-700 border-amber-200',
+  Draft: 'bg-amber-50 text-amber-700 border-amber-200',
+  Rejected: 'bg-red-50 text-red-700 border-red-200',
+  Sold: 'bg-gray-50 text-gray-700 border-gray-200',
+};
 
 export default function Dashboard() {
-  // Mock data for top statistics
-  const stats = [
-    { title: 'Total Properties', value: '1,248', trend: '+12%', trendUp: true, icon: '🏢' },
-    { title: 'Active Rentals', value: '432', trend: '+5%', trendUp: true, icon: '🔑' },
-    { title: 'Commercial Plots', value: '189', trend: '-2%', trendUp: false, icon: '🏗️' },
-    { title: 'Total Revenue', value: '$4.2M', trend: '+18%', trendUp: true, icon: '📈' },
-  ];
+  const [summary, setSummary] = useState({
+    total: 0,
+    approved: 0,
+    pending: 0,
+    rejected: 0,
+  });
+  const [recentProperties, setRecentProperties] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Mock data for a high-density recent activity table
-  const recentProperties = [
-    { id: '#P-001', name: 'Sunrise Tech Park', category: 'Commercial', status: 'Active', price: '$2.5M', date: 'May 6, 2026' },
-    { id: '#P-002', name: 'Downtown Retail Space', category: 'Plot + Building', status: 'Pending', price: '$850k', date: 'May 5, 2026' },
-    { id: '#P-003', name: 'Westside Residential Plot', category: 'Plot', status: 'Active', price: '$120k', date: 'May 4, 2026' },
-    { id: '#P-004', name: 'Lakeview Apartments', category: 'Rental', status: 'Sold', price: '$3.2k/mo', date: 'May 2, 2026' },
-  ];
+  const fetchDashboard = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [allRes, approvedRes, pendingRes, rejectedRes] = await Promise.all([
+        getProperties({ page: 1, limit: 8 }),
+        getProperties({ page: 1, limit: 1, is_approved: true }),
+        getProperties({ page: 1, limit: 1, is_approved: null }),
+        getProperties({ page: 1, limit: 1, is_approved: false }),
+      ]);
+
+      const { items, pagination } = getPropertiesPayload(allRes);
+
+      setRecentProperties(items);
+      setSummary({
+        total: pagination?.total ?? pagination?.count ?? pagination?.total_count ?? items.length,
+        approved: getPayloadTotal(approvedRes),
+        pending: getPayloadTotal(pendingRes),
+        rejected: getPayloadTotal(rejectedRes),
+      });
+    } catch (e) {
+      console.error('Failed to load dashboard', e);
+      setError('Failed to load dashboard details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchDashboard();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const statusCards = useMemo(
+    () => [
+      {
+        title: 'Total Properties',
+        value: summary.total,
+        icon: FiHome,
+        detail: 'All listings in the system',
+        className: 'bg-blue-50 text-blue-700',
+      },
+      {
+        title: 'Approved',
+        value: summary.approved,
+        icon: FiCheckCircle,
+        detail: 'Ready for customers',
+        className: 'bg-emerald-50 text-emerald-700',
+      },
+      {
+        title: 'Pending Review',
+        value: summary.pending,
+        icon: FiClock,
+        detail: 'Waiting for approval',
+        className: 'bg-amber-50 text-amber-700',
+      },
+      {
+        title: 'Rejected',
+        value: summary.rejected,
+        icon: FiXCircle,
+        detail: 'Needs correction',
+        className: 'bg-red-50 text-red-700',
+      },
+    ],
+    [summary]
+  );
+
+  const featuredCount = recentProperties.filter(isPropertyFeatured).length;
+  const activeListings = recentProperties.filter((property) => getPropertyStatusLabel(property) !== 'Rejected').length;
+  const approvalRows = statusCards.slice(1).map((item) => ({
+    ...item,
+    percent: summary.total > 0 ? Math.round((item.value / summary.total) * 100) : 0,
+  }));
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Dashboard Overview</h1>
-          <p className="text-sm text-gray-500 mt-1">Welcome back. Here is what's happening with your properties today.</p>
-        </div>
-        <button className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add New Property
-        </button>
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Dashboard Overview</h1>
+        <p className="text-sm text-gray-500">Live property status, approval counts, and recent listing details.</p>
       </div>
 
-      {/* Stat Cards - Modern Glassmorphic / Soft UI feel */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => (
-          <div 
-            key={index} 
-            className="bg-white/80 backdrop-blur-xl border border-gray-100 rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all duration-300"
-          >
-            <div className="flex justify-between items-start">
+      {error && (
+        <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {statusCards.map((stat) => (
+          <div key={stat.title} className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</h3>
+                <div className="mt-2 text-3xl font-semibold text-gray-900">
+                  {loading ? '...' : stat.value}
+                </div>
               </div>
-              <div className="h-10 w-10 rounded-full bg-gray-50 flex items-center justify-center text-xl">
-                {stat.icon}
-              </div>
-            </div>
-            <div className="mt-4 flex items-center text-sm">
-              <span className={`font-medium flex items-center ${stat.trendUp ? 'text-emerald-600' : 'text-red-600'}`}>
-                {stat.trendUp ? (
-                  <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                ) : (
-                  <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6" /></svg>
-                )}
-                {stat.trend}
+              <span className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${stat.className}`}>
+                <stat.icon className="h-5 w-5" />
               </span>
-              <span className="text-gray-400 ml-2">vs last month</span>
             </div>
+            <p className="mt-4 text-sm text-gray-500">{stat.detail}</p>
           </div>
         ))}
       </div>
 
-      {/* High-Density Data Table Section */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Recent Listings</h2>
-          <button className="text-sm text-blue-600 font-medium hover:text-blue-700">View all</button>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">Approval Status</h2>
+            <FiList className="h-5 w-5 text-gray-400" />
+          </div>
+          <div className="mt-5 space-y-4">
+            {approvalRows.map((row) => (
+              <div key={row.title}>
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="font-medium text-gray-700">{row.title}</span>
+                  <span className="text-gray-500">{loading ? '...' : `${row.value} (${row.percent}%)`}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                  <div
+                    className={`h-full rounded-full ${
+                      row.title === 'Approved'
+                        ? 'bg-emerald-500'
+                        : row.title === 'Pending Review'
+                          ? 'bg-amber-500'
+                          : 'bg-red-500'
+                    }`}
+                    style={{ width: `${row.percent}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-        
+
+        <div className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm xl:col-span-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">Listing Snapshot</h2>
+            <FiStar className="h-5 w-5 text-gray-400" />
+          </div>
+          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="rounded-lg bg-gray-50 p-4">
+              <div className="text-sm font-medium text-gray-500">Recent Loaded</div>
+              <div className="mt-2 text-2xl font-semibold text-gray-900">{loading ? '...' : recentProperties.length}</div>
+            </div>
+            <div className="rounded-lg bg-gray-50 p-4">
+              <div className="text-sm font-medium text-gray-500">Featured</div>
+              <div className="mt-2 text-2xl font-semibold text-gray-900">{loading ? '...' : featuredCount}</div>
+            </div>
+            <div className="rounded-lg bg-gray-50 p-4">
+              <div className="text-sm font-medium text-gray-500">Visible Listings</div>
+              <div className="mt-2 text-2xl font-semibold text-gray-900">{loading ? '...' : activeListings}</div>
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-gray-500">
+            Snapshot values are based on the most recent listings returned by the property API.
+          </p>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+          <h2 className="text-base font-semibold text-gray-900">Recent Listings</h2>
+          <span className="text-sm text-gray-500">{summary.total} total</span>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50/50">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Property</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Added</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">Property</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">Type</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">Status</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">Price</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">Area</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold uppercase text-gray-500">Added</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {recentProperties.map((property) => (
-                <tr key={property.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium text-gray-900">{property.name}</span>
-                      <span className="text-xs text-gray-500">{property.id}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-600">{property.category}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
-                      ${property.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
-                        property.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' : 
-                        'bg-gray-50 text-gray-700 border-gray-200'}`}
-                    >
-                      {property.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {property.price}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                    {property.date}
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {loading ? (
+                <tr>
+                  <td className="px-5 py-8 text-center text-sm text-gray-400" colSpan={6}>
+                    Loading dashboard details...
                   </td>
                 </tr>
-              ))}
+              ) : recentProperties.length === 0 ? (
+                <tr>
+                  <td className="px-5 py-8 text-center text-sm text-gray-400" colSpan={6}>
+                    No recent properties found.
+                  </td>
+                </tr>
+              ) : (
+                recentProperties.map((property) => {
+                  const statusLabel = getPropertyStatusLabel(property);
+                  const propertyAmount = property.total_amount ?? property.amount;
+                  const createdDate = property.createdAt || property.created_at
+                    ? new Date(property.createdAt ?? property.created_at).toLocaleDateString()
+                    : '-';
+
+                  return (
+                    <tr key={getPropertyId(property)} className="hover:bg-gray-50">
+                      <td className="px-5 py-4 align-top">
+                        <div className="min-w-60">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-900">{property.name || 'Untitled property'}</span>
+                            {isPropertyFeatured(property) && <FiStar className="h-4 w-4 shrink-0 fill-current text-amber-500" />}
+                          </div>
+                          <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                            <FiMapPin className="h-3.5 w-3.5 shrink-0" />
+                            <span>{property.location || property.address || '-'}</span>
+                          </div>
+                          <div className="mt-1 text-xs text-gray-400">{getPropertyId(property)}</div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 align-top text-sm text-gray-600">
+                        <div>{joinNames(property.property_categories || property.categories)}</div>
+                        <div className="mt-1 text-xs text-gray-400">{joinNames(property.property_types || property.types)}</div>
+                      </td>
+                      <td className="px-5 py-4 align-top">
+                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusStyles[statusLabel] || 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                          {statusLabel}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 align-top text-sm font-semibold text-gray-900">
+                        {formatCurrency(propertyAmount)}
+                      </td>
+                      <td className="px-5 py-4 align-top text-sm text-gray-600">
+                        {getAreaDisplay(property)}
+                      </td>
+                      <td className="px-5 py-4 text-right align-top text-sm text-gray-500">
+                        {createdDate}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

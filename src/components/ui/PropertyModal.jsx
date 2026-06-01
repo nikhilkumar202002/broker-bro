@@ -29,45 +29,74 @@ const toIdCsv = (items, fallback) => {
   return toCsv(fallback);
 };
 
+const toFirstId = (items, fallback) => {
+  if (Array.isArray(items) && items.length > 0) {
+    const firstItem = items[0];
+    return String(firstItem?.id ?? firstItem?._id ?? firstItem ?? '');
+  }
+
+  return String(Array.isArray(fallback) ? fallback[0] ?? '' : fallback || '');
+};
+
 const toArray = (value) =>
   String(value || '')
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
 
-export default function PropertyModal({ isOpen, onClose, onSave, initialData }) {
+const getOptionId = (option) => option?.id ?? option?._id ?? option?.value ?? option?.name;
+
+export default function PropertyModal({
+  isOpen,
+  onClose,
+  onSave,
+  initialData,
+  categoryOptions = [],
+  typeOptions = [],
+  amenitiesOptions = [],
+  facilitiesOptions = [],
+}) {
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
     if (isOpen) {
-      setForm(
-        initialData
-          ? {
-              ...emptyForm,
-              name: initialData.name || '',
-              description: initialData.description || '',
-              location: initialData.location || '',
-              address: initialData.address || '',
-              property_category_ids: toIdCsv(initialData.property_categories, initialData.property_category_ids),
-              property_type_ids: toIdCsv(initialData.property_types, initialData.property_type_ids),
-              per_cent: initialData.per_cent || '',
-              total_cent: initialData.total_cent || '',
-              amount: initialData.amount || '',
-              facilities_ids: toIdCsv(initialData.facilities, initialData.facilities_ids),
-              amenities_ids: toIdCsv(initialData.amenities, initialData.amenities_ids),
-            }
-          : { ...emptyForm }
-      );
+      const timer = setTimeout(() => {
+        setForm(
+          initialData
+            ? {
+                ...emptyForm,
+                name: initialData.name || '',
+                description: initialData.description || '',
+                location: initialData.location || '',
+                address: initialData.address || '',
+                property_category_ids: toFirstId(initialData.property_categories, initialData.property_category_ids),
+                property_type_ids: toFirstId(initialData.property_types, initialData.property_type_ids),
+                per_cent: initialData.per_cent || '',
+                total_cent: initialData.total_cent || '',
+                amount: initialData.amount || '',
+                facilities_ids: toIdCsv(initialData.facilities, initialData.facilities_ids),
+                amenities_ids: toIdCsv(initialData.amenities, initialData.amenities_ids),
+              }
+            : { ...emptyForm }
+        );
+      }, 0);
+
+      return () => clearTimeout(timer);
     }
   }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
   const handleChange = (event) => {
-    const { name, value, files, type } = event.target;
+    const { name, value, files, type, selectedOptions, multiple } = event.target;
 
     if (type === 'file') {
       setForm((prev) => ({ ...prev, [name]: Array.from(files || []) }));
+      return;
+    }
+
+    if (multiple) {
+      setForm((prev) => ({ ...prev, [name]: Array.from(selectedOptions).map((option) => option.value) }));
       return;
     }
 
@@ -125,13 +154,47 @@ export default function PropertyModal({ isOpen, onClose, onSave, initialData }) 
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Property Category IDs *</label>
-              <input name="property_category_ids" required value={form.property_category_ids} onChange={handleChange} placeholder="id1, id2" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Property Category *</label>
+              <select
+                name="property_category_ids"
+                required
+                value={form.property_category_ids}
+                onChange={handleChange}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select category</option>
+                {categoryOptions.map((category) => {
+                  const optionId = String(getOptionId(category));
+
+                  return (
+                    <option key={optionId} value={optionId}>
+                      {category.name}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Property Type IDs *</label>
-              <input name="property_type_ids" required value={form.property_type_ids} onChange={handleChange} placeholder="id1, id2" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Property Type *</label>
+              <select
+                name="property_type_ids"
+                required
+                value={form.property_type_ids}
+                onChange={handleChange}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select type</option>
+                {typeOptions.map((type) => {
+                  const optionId = String(getOptionId(type));
+
+                  return (
+                    <option key={optionId} value={optionId}>
+                      {type.name}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             <div>
@@ -160,13 +223,45 @@ export default function PropertyModal({ isOpen, onClose, onSave, initialData }) 
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Facilities IDs</label>
-              <input name="facilities_ids" value={form.facilities_ids} onChange={handleChange} placeholder="Optional: id1, id2" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Facilities</label>
+              <select
+                name="facilities_ids"
+                multiple
+                value={Array.isArray(form.facilities_ids) ? form.facilities_ids : toArray(form.facilities_ids)}
+                onChange={handleChange}
+                className="w-full min-h-28 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {facilitiesOptions.map((facility) => {
+                  const optionId = String(getOptionId(facility));
+
+                  return (
+                    <option key={optionId} value={optionId}>
+                      {facility.name}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Amenities IDs</label>
-              <input name="amenities_ids" value={form.amenities_ids} onChange={handleChange} placeholder="Optional: id1, id2" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Amenities</label>
+              <select
+                name="amenities_ids"
+                multiple
+                value={Array.isArray(form.amenities_ids) ? form.amenities_ids : toArray(form.amenities_ids)}
+                onChange={handleChange}
+                className="w-full min-h-28 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {amenitiesOptions.map((amenity) => {
+                  const optionId = String(getOptionId(amenity));
+
+                  return (
+                    <option key={optionId} value={optionId}>
+                      {amenity.name}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
           </div>
 

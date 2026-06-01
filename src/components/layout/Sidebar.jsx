@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../../services/api';
-import { FiGlobe, FiHome, FiPackage, FiTag, FiUsers, FiChevronDown, FiLogOut } from 'react-icons/fi';
+import { FiGlobe, FiHome, FiPackage, FiTag, FiUsers, FiChevronDown, FiLogOut, FiX, FiChevronsLeft, FiChevronsRight } from 'react-icons/fi';
 
-export default function Sidebar() {
+export default function Sidebar({ isCollapsed, isMobileOpen, onToggleCollapse, onCloseMobile }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [expandedMenus, setExpandedMenus] = useState({});
+  const isCompact = isCollapsed && !isMobileOpen;
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: FiHome },
@@ -52,14 +53,16 @@ export default function Sidebar() {
         }
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
   const handleLogout = async () => {
     try {
       await logout();
-    } catch (err) {
+    } catch {
       // ignore - ensure navigation and local cleanup regardless
     } finally {
+      onCloseMobile?.();
       navigate('/login');
     }
   };
@@ -71,38 +74,62 @@ export default function Sidebar() {
     }));
   };
 
-  return (
-    <aside className="hidden md:flex flex-col w-64 bg-gray-900 min-h-screen text-white transition-all duration-300">
-      <div className="h-16 flex items-center px-6 border-b border-gray-800">
-        <h1 className="text-xl font-bold tracking-wider text-white">Property<span className="text-blue-500">Hub</span></h1>
+  const sidebarContent = (
+    <>
+      <div className={`h-16 flex items-center border-b border-gray-800 ${isCompact ? 'justify-center px-3' : 'justify-between px-6'}`}>
+        {!isCompact && (
+          <h1 className="text-xl font-bold tracking-wider text-white">Property<span className="text-blue-500">Hub</span></h1>
+        )}
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white"
+          title={isCompact ? 'Open sidebar' : 'Close sidebar'}
+        >
+          {isCompact ? <FiChevronsRight className="w-5 h-5" /> : <FiChevronsLeft className="w-5 h-5" />}
+        </button>
+        <button
+          type="button"
+          onClick={onCloseMobile}
+          className="md:hidden h-9 w-9 items-center justify-center rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white"
+          title="Close sidebar"
+        >
+          <FiX className="w-5 h-5" />
+        </button>
       </div>
 
-      <nav className="flex-1 px-4 py-6 space-y-2">
+      <nav className={`flex-1 py-6 space-y-2 ${isCompact ? 'px-3' : 'px-4'}`}>
         {navItems.map((item) => (
           <div key={item.name}>
             {item.submenu ? (
-              // Menu item with submenu
               <>
                 <button
                   onClick={() => toggleMenu(item.name)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors font-medium w-full text-left ${
+                  className={`flex items-center rounded-lg transition-colors font-medium w-full ${
+                    isCompact ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5 text-left'
+                  } ${
                     expandedMenus[item.name]
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                   }`}
+                  title={isCompact ? item.name : undefined}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span className="flex-1">{item.name}</span>
-                  <FiChevronDown className={`w-4 h-4 transition-transform ${expandedMenus[item.name] ? 'rotate-180' : ''}`} />
+                  <item.icon className="w-5 h-5 shrink-0" />
+                  {!isCompact && (
+                    <>
+                      <span className="flex-1">{item.name}</span>
+                      <FiChevronDown className={`w-4 h-4 transition-transform ${expandedMenus[item.name] ? 'rotate-180' : ''}`} />
+                    </>
+                  )}
                 </button>
-                
-                {/* Submenu items */}
-                {expandedMenus[item.name] && (
+
+                {!isCompact && expandedMenus[item.name] && (
                   <div className="ml-4 mt-2 space-y-1">
                     {item.submenu.map((subitem) => (
                       <NavLink
                         key={subitem.name}
                         to={subitem.path}
+                        onClick={onCloseMobile}
                         className={({ isActive }) =>
                           `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm ${
                             isActive
@@ -119,31 +146,55 @@ export default function Sidebar() {
                 )}
               </>
             ) : (
-              // Regular menu item without submenu
               <NavLink
                 to={item.path}
+                onClick={onCloseMobile}
+                title={isCompact ? item.name : undefined}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors font-medium ${
-                    isActive 
-                      ? 'bg-blue-600 text-white shadow-sm' 
+                  `flex items-center rounded-lg transition-colors font-medium ${
+                    isCompact ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5'
+                  } ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-sm'
                       : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                   }`
                 }
               >
-                <item.icon className="w-5 h-5" />
-                {item.name}
+                <item.icon className="w-5 h-5 shrink-0" />
+                {!isCompact && item.name}
               </NavLink>
             )}
           </div>
         ))}
       </nav>
 
-      <div className="p-4 border-t border-gray-800">
-        <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-gray-300 hover:bg-red-500/10 hover:text-red-500 transition-colors font-medium">
-          <FiLogOut className="w-5 h-5" />
-          Logout
+      <div className={`border-t border-gray-800 ${isCompact ? 'p-3' : 'p-4'}`}>
+        <button
+          onClick={handleLogout}
+          className={`flex items-center w-full rounded-lg text-gray-300 hover:bg-red-500/10 hover:text-red-500 transition-colors font-medium ${
+            isCompact ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5'
+          }`}
+          title={isCompact ? 'Logout' : undefined}
+        >
+          <FiLogOut className="w-5 h-5 shrink-0" />
+          {!isCompact && 'Logout'}
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onCloseMobile} />
+      )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-gray-900 text-white transition-transform duration-300 md:static md:z-auto md:translate-x-0 ${
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        } w-64 ${isCollapsed ? 'md:w-20' : 'md:w-64'}`}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   );
 }
