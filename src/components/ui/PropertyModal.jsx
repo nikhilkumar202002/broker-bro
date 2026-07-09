@@ -12,6 +12,7 @@ const emptyForm = {
   per_cent: '',
   total_cent: '',
   amount: '',
+  is_rented: '0',
   facilities_ids: '',
   amenities_ids: '',
 };
@@ -45,6 +46,8 @@ const toArray = (value) =>
     .filter(Boolean);
 
 const getOptionId = (option) => option?.id ?? option?._id ?? option?.value ?? option?.name;
+const isRentedValue = (value) =>
+  value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'true';
 
 export default function PropertyModal({
   isOpen,
@@ -73,7 +76,8 @@ export default function PropertyModal({
                 property_type_ids: toFirstId(initialData.property_types, initialData.property_type_ids),
                 per_cent: initialData.per_cent || '',
                 total_cent: initialData.total_cent || '',
-                amount: initialData.amount || '',
+                amount: initialData.amount_per_month || initialData.amount || '',
+                is_rented: isRentedValue(initialData.is_rented) ? '1' : '0',
                 facilities_ids: toIdCsv(initialData.facilities, initialData.facilities_ids),
                 amenities_ids: toIdCsv(initialData.amenities, initialData.amenities_ids),
               }
@@ -105,9 +109,13 @@ export default function PropertyModal({
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    const { amount, ...restForm } = form;
+    const isRental = String(form.is_rented) === '1';
 
     onSave({
-      ...form,
+      ...restForm,
+      is_rented: isRental ? 1 : 0,
+      ...(isRental ? { amount_per_month: amount } : { amount }),
       property_category_ids: toArray(form.property_category_ids),
       property_type_ids: toArray(form.property_type_ids),
       facilities_ids: toArray(form.facilities_ids),
@@ -133,6 +141,35 @@ export default function PropertyModal({
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Listing Type *</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { value: '0', label: 'For Selling' },
+                  { value: '1', label: 'For Rental' },
+                ].map((option) => (
+                  <label
+                    key={option.value}
+                    className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
+                      form.is_rented === option.value
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="is_rented"
+                      value={option.value}
+                      checked={form.is_rented === option.value}
+                      onChange={handleChange}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
               <input name="name" required value={form.name} onChange={handleChange} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -218,7 +255,7 @@ export default function PropertyModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{form.is_rented === '1' ? 'Amount Per Month' : 'Amount'} *</label>
               <input name="amount" type="number" required value={form.amount} onChange={handleChange} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
 

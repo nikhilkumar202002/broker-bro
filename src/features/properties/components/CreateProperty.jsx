@@ -32,6 +32,7 @@ const emptyFormData = () => ({
   no_of_kitchen: '',
   no_of_halls: '',
   sq_feet: '',
+  is_rented: '0',
   facilities_ids: [],
   amenities_ids: [],
 });
@@ -230,6 +231,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     selectedTypeText.includes('apartment') ||
     selectedTypeText.includes('villa');
   const hidesLocationDetails = isPlotType || isBuildingType;
+  const isRental = String(formData.is_rented) === '1';
 
   const calculateAmount = (perCent, totalCent) => {
     const perCentNumber = Number(perCent);
@@ -408,8 +410,11 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     setError(null);
 
     try {
+      const { amount, ...restFormData } = formData;
       const response = await createProperty({
-        ...formData,
+        ...restFormData,
+        is_rented: isRental ? 1 : 0,
+        ...(isRental ? { amount_per_month: amount } : { amount }),
         property_category_ids: formData.property_category_ids ? [formData.property_category_ids] : [],
         property_type_ids: formData.property_type_ids ? [formData.property_type_ids] : [],
       });
@@ -450,6 +455,34 @@ export default function CreateProperty({ onSuccess, onCancel }) {
           {renderSection(
             'Property Basic Details',
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-3">
+                <label className={labelClass}>Listing Type <span className="text-red-500">*</span></label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { value: '0', label: 'For Selling' },
+                    { value: '1', label: 'For Rental' },
+                  ].map((option) => (
+                    <label
+                      key={option.value}
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
+                        formData.is_rented === option.value
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="is_rented"
+                        value={option.value}
+                        checked={formData.is_rented === option.value}
+                        onChange={(event) => updateField('is_rented', event.target.value)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
               <div className="md:col-span-2">
                 {renderTextInput('name', 'Name', { required: true, placeholder: 'Property name' })}
               </div>
@@ -565,7 +598,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
               {isPlotType && renderTextInput('total_cent', 'Total Cent', { type: 'number', min: '0' })}
               {isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
               {!isPlotType && !isBuildingType && renderTextInput('total_cent', 'Total Cent', { type: 'number', min: '0' })}
-              {renderTextInput('amount', 'Amount', { type: 'number', min: '0', required: true })}
+              {renderTextInput('amount', isRental ? 'Amount Per Month' : 'Amount', { type: 'number', min: '0', required: true })}
             </div>,
             isPlotType ? 'For plots, amount is calculated from per cent and total cent when both values are entered.' : 'Add the size and final listing amount.'
           )}

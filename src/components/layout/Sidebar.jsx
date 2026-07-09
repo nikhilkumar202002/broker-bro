@@ -32,6 +32,7 @@ export default function Sidebar({ isCollapsed, isMobileOpen, onToggleCollapse, o
       name: 'Users',
       icon: FiUsers,
       submenu: [
+        { name: 'Admin', path: '/users/admin' },
         { name: 'Sellers', path: '/users/sellers' },
         { name: 'Customers', path: '/users/customers' }
       ]

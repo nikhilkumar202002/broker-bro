@@ -155,6 +155,8 @@ export const unfeatureProperty = (id) => api.patch(`/properties/${id}/unfeature`
 
 // Users
 export const getUsers = (params) => api.get('/users', { params });
+export const getAdmins = (params) => getUsers({ ...(params || {}), role: 'admin' });
+export const createAdminUser = (data) => api.post('/users/register/admin', data);
 export const getSellers = (params) => getUsers({ ...(params || {}), role: 'seller' });
 export const getCustomers = (params) => getUsers({ ...(params || {}), role: 'user' });
 export const activateUser = (id) => api.patch(`/users/${id}/activate-seller`);

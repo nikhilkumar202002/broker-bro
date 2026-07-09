@@ -11,6 +11,7 @@ import Facilities from '../pages/property-settings/Facilities';
 
 import Seller from '../pages/users/Sellers';
 import Customer from '../pages/users/Customers';
+import AdminUsers from '../pages/users/AdminUsers';
 
 
 const DashboardHome = () => <Dashboard />;
@@ -43,6 +44,7 @@ const router = createBrowserRouter([
       { path: '/categories/property-category', element: <CategoryList /> },
       { path: '/property-setting/amenities', element: <Amenties /> },
       { path: '/property-setting/facilities', element: <Facilities /> },
+      { path: '/users/admin', element: <AdminUsers /> },
       { path: '/users/sellers', element: <Seller /> },
       { path: '/users/customers', element: <Customer /> },
     ]

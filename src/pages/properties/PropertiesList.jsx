@@ -2,40 +2,42 @@ import { useState, useEffect } from 'react';
 import CreateProperty from '../../features/properties/components/CreateProperty';
 import { getCategories, getProperties, getPropertyTypes, getPropertyStatuses, approveProperty, featureProperty, unfeatureProperty, updatePropertyStatus } from '../../services/api';
 import toast from 'react-hot-toast';
-import { FiCheck, FiTrash2, FiEye, FiStar, FiPower, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiCheck, FiTrash2, FiEye, FiStar, FiPower, FiChevronLeft, FiChevronRight, FiMapPin, FiCalendar, FiHome } from 'react-icons/fi';
 
 const initialProperties = [];
 
 const PropertyCardSkeleton = () => (
-  <article className="h-full bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-    <div className="flex flex-col sm:flex-row h-full animate-pulse">
-      <div className="sm:w-1/2 shrink-0 self-stretch bg-gray-100">
-        <div className="h-48 sm:h-full min-h-56 w-full bg-gray-200" />
-      </div>
+  <article className="h-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+    <div className="animate-pulse">
+      <div className="h-56 bg-gray-200" />
 
-      <div className="flex flex-1 flex-col p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="h-5 w-2/3 rounded bg-gray-200" />
-          <div className="h-5 w-20 shrink-0 rounded-full bg-gray-200" />
-        </div>
-        <div className="mt-3 space-y-2">
-          <div className="h-3 w-full rounded bg-gray-100" />
-          <div className="h-3 w-4/5 rounded bg-gray-100" />
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-3">
+            <div className="h-5 w-48 rounded bg-gray-200" />
+            <div className="h-3 w-32 rounded bg-gray-100" />
+          </div>
+          <div className="h-7 w-20 shrink-0 rounded-full bg-gray-100" />
         </div>
 
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="space-y-2">
-              <div className="h-3 w-16 rounded bg-gray-100" />
-              <div className="h-4 w-24 rounded bg-gray-200" />
+        <div className="mt-5 grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="rounded-xl border border-gray-100 p-3">
+              <div className="h-3 w-14 rounded bg-gray-100" />
+              <div className="mt-3 h-4 w-20 rounded bg-gray-200" />
             </div>
           ))}
         </div>
 
-        <div className="mt-auto pt-5 flex flex-wrap gap-2">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="h-9 w-24 rounded-lg bg-gray-100" />
-          ))}
+        <div className="mt-5 space-y-2">
+          <div className="h-3 w-full rounded bg-gray-100" />
+          <div className="h-3 w-4/5 rounded bg-gray-100" />
+        </div>
+
+        <div className="mt-5 flex gap-2">
+          <div className="h-10 flex-1 rounded-xl bg-gray-100" />
+          <div className="h-10 w-10 rounded-xl bg-gray-100" />
+          <div className="h-10 w-10 rounded-xl bg-gray-100" />
         </div>
       </div>
     </div>
@@ -43,12 +45,12 @@ const PropertyCardSkeleton = () => (
 );
 
 const statusStyles = {
-  Approved: 'bg-green-100 text-green-700',
-  Active: 'bg-green-100 text-green-700',
-  Pending: 'bg-yellow-100 text-yellow-700',
-  Draft: 'bg-yellow-100 text-yellow-700',
-  Rejected: 'bg-red-100 text-red-700',
-  Sold: 'bg-gray-100 text-gray-500',
+  Approved: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+  Active: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+  Pending: 'bg-amber-50 text-amber-700 ring-amber-100',
+  Draft: 'bg-amber-50 text-amber-700 ring-amber-100',
+  Rejected: 'bg-red-50 text-red-700 ring-red-100',
+  Sold: 'bg-gray-100 text-gray-500 ring-gray-200',
 };
 
 const getPropertiesPayload = (response) => {
@@ -480,15 +482,15 @@ export default function PropertiesList() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-5">
         {loading ? (
           Array.from({ length: 4 }).map((_, index) => <PropertyCardSkeleton key={index} />)
         ) : error ? (
-          <div className="xl:col-span-2 bg-white border border-red-100 rounded-xl px-5 py-10 text-center text-sm text-red-500 shadow-sm">
+          <div className="lg:col-span-2 2xl:col-span-3 bg-white border border-red-100 rounded-xl px-5 py-10 text-center text-sm text-red-500 shadow-sm">
             {error}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="xl:col-span-2 bg-white border border-gray-100 rounded-xl px-5 py-10 text-center text-sm text-gray-400 shadow-sm">
+          <div className="lg:col-span-2 2xl:col-span-3 bg-white border border-gray-100 rounded-xl px-5 py-10 text-center text-sm text-gray-400 shadow-sm">
             No properties found.
           </div>
         ) : (
@@ -510,145 +512,171 @@ export default function PropertiesList() {
             return (
               <article
                 key={propertyId}
-                className="h-full bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden transition-colors hover:border-blue-100"
+                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-xl hover:shadow-gray-200/70"
               >
-                <div className="flex flex-col sm:flex-row h-full">
-                  <div className="relative sm:w-1/2 shrink-0 self-stretch bg-gray-100">
-                    {imageUrl ? (
-                      <>
-                        <img
-                          src={imageUrl}
-                          alt={property.name || 'Property'}
-                          className="h-48 sm:h-full min-h-56 w-full object-cover"
-                        />
-                        {imageUrls.length > 1 && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleGalleryStep(propertyId, imageUrls.length, -1)}
-                              className="absolute left-3 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow hover:bg-white"
-                              title="Previous image"
-                            >
-                              <FiChevronLeft className="h-5 w-5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleGalleryStep(propertyId, imageUrls.length, 1)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow hover:bg-white"
-                              title="Next image"
-                            >
-                              <FiChevronRight className="h-5 w-5" />
-                            </button>
-                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white">
-                              {activeImageIndex + 1} / {imageUrls.length}
-                            </div>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <div className="h-48 sm:h-full min-h-56 w-full flex items-center justify-center text-sm text-gray-400">
-                        No image
+                <div className="relative h-56 overflow-hidden bg-gray-100">
+                  <div className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-3">
+                    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-1 ${statusStyles[statusLabel] || 'bg-white/90 text-gray-600 ring-gray-200'}`}>
+                      {statusLabel}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {isFeatured && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-400 px-3 py-1 text-xs font-semibold text-amber-950 shadow-sm">
+                          <FiStar className="h-3.5 w-3.5 fill-current" />
+                          Featured
+                        </span>
+                      )}
+                      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ${
+                        isActive ? 'bg-emerald-500 text-white' : 'bg-white/90 text-gray-600'
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-white' : 'bg-gray-400'}`} />
+                        {isActive ? 'Live' : 'Unactive'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={property.name || 'Property'}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-sm font-medium text-gray-400">
+                      No image
+                    </div>
+                  )}
+
+                  <div className="absolute inset-x-0 bottom-0 z-10 h-28 bg-gradient-to-t from-black/65 to-transparent" />
+
+                  {imageUrls.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleGalleryStep(propertyId, imageUrls.length, -1)}
+                        className="absolute left-3 top-1/2 z-20 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-lg shadow-black/10 transition hover:bg-white"
+                        title="Previous image"
+                      >
+                        <FiChevronLeft className="h-5 w-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleGalleryStep(propertyId, imageUrls.length, 1)}
+                        className="absolute right-3 top-1/2 z-20 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-lg shadow-black/10 transition hover:bg-white"
+                        title="Next image"
+                      >
+                        <FiChevronRight className="h-5 w-5" />
+                      </button>
+                    </>
+                  )}
+
+                  <div className="absolute bottom-3 left-3 right-3 z-20 flex items-end justify-between gap-3 text-white">
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium uppercase tracking-wide text-white/75">{typeName}</div>
+                      <div className="mt-0.5 truncate text-xl font-bold">{formatCurrency(propertyAmount)}</div>
+                    </div>
+                    {imageUrls.length > 1 && (
+                      <div className="rounded-full bg-black/45 px-2.5 py-1 text-xs font-semibold backdrop-blur">
+                        {activeImageIndex + 1} / {imageUrls.length}
                       </div>
                     )}
                   </div>
+                </div>
 
-                  <div className="flex flex-1 flex-col p-5">
-                    <div className="min-w-0">
-                      <div className="flex items-start justify-between gap-3">
-                        <h2 className="min-w-0 text-lg font-semibold text-gray-900 break-words">
+                <div className="flex flex-1 flex-col p-5">
+                  <div className="min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="truncate text-lg font-bold text-gray-950">
                           {property.name || 'Untitled property'}
                         </h2>
-                        <span className={`shrink-0 inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[statusLabel] || 'bg-gray-100 text-gray-500'}`}>
-                          {statusLabel}
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="mt-2 text-sm text-gray-500 line-clamp-2">
-                          {property.description || property.location || property.address || 'No description added.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                      <div>
-                        <div className="text-xs font-medium uppercase text-gray-400">Category</div>
-                        <div className="mt-1 text-gray-700">{categoryName}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-medium uppercase text-gray-400">Type</div>
-                        <div className="mt-1 text-gray-700">{typeName}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-medium uppercase text-gray-400">Date</div>
-                        <div className="mt-1 text-gray-700">{createdDate}</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                      <div>
-                        <div className="text-xs font-medium uppercase text-gray-400">Location</div>
-                        <div className="mt-1 text-gray-700">{property.location || '-'}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-medium uppercase text-gray-400">Price</div>
-                        <div className="mt-1 font-semibold text-gray-900">{formatCurrency(propertyAmount)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-medium uppercase text-gray-400">Area</div>
-                        <div className="mt-1 text-gray-700">
-                          {getAreaDisplay(property)}
+                        <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-gray-500">
+                          <FiMapPin className="h-4 w-4 shrink-0 text-gray-400" />
+                          <span className="truncate">{property.location || property.address || 'Location not added'}</span>
                         </div>
                       </div>
+                      <div className="shrink-0 rounded-xl bg-blue-50 px-3 py-2 text-right">
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-blue-500">Area</div>
+                        <div className="mt-0.5 text-sm font-bold text-blue-700">{getAreaDisplay(property)}</div>
+                      </div>
                     </div>
+                    <p className="mt-3 line-clamp-2 text-sm leading-6 text-gray-500">
+                      {property.description || property.location || property.address || 'No description added.'}
+                    </p>
+                  </div>
 
-                    <div className="mt-auto pt-5 flex flex-wrap items-center justify-start gap-2">
+                  <div className="mt-5 grid grid-cols-3 gap-2 text-sm">
+                    <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        <FiHome className="h-3.5 w-3.5" />
+                        Category
+                      </div>
+                      <div className="mt-2 truncate font-semibold text-gray-800">{categoryName}</div>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Type</div>
+                      <div className="mt-2 truncate font-semibold text-gray-800">{typeName}</div>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        <FiCalendar className="h-3.5 w-3.5" />
+                        Date
+                      </div>
+                      <div className="mt-2 truncate font-semibold text-gray-800">{createdDate}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-auto pt-5">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setViewingProperty(property)}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800"
+                      >
+                        <FiEye className="h-4 w-4" />
+                        View Details
+                      </button>
                       <button
                         onClick={() => handleToggleStatus(property)}
                         disabled={statusUpdatingIds.includes(propertyId)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg disabled:opacity-50 ${
+                        title={isActive ? 'Set as unactive' : 'Set as active'}
+                        className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold transition disabled:opacity-50 ${
                           isActive
-                            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                            : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
                         }`}
                       >
-                        <FiPower className="w-4 h-4" />
-                        {statusUpdatingIds.includes(propertyId) ? 'Saving...' : isActive ? 'Active' : 'Unactive'}
+                        <FiPower className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleToggleFeatured(property)}
                         disabled={featuringIds.includes(propertyId)}
                         title={isFeatured ? 'Set as unfeatured' : 'Set as featured'}
-                        className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg disabled:opacity-50 ${
+                        className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold transition disabled:opacity-50 ${
                           isFeatured
-                            ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'border-amber-100 bg-amber-50 text-amber-600 hover:bg-amber-100'
+                            : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
                         }`}
                       >
-                        <FiStar className={`w-4 h-4 ${isFeatured ? 'fill-current' : ''}`} />
-                        {featuringIds.includes(propertyId) ? 'Saving...' : isFeatured ? 'Featured' : 'Feature'}
+                        <FiStar className={`h-4 w-4 ${isFeatured ? 'fill-current' : ''}`} />
                       </button>
-                      <button
-                        onClick={() => setViewingProperty(property)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      >
-                        <FiEye className="w-4 h-4" />
-                        View Details
-                      </button>
+                    </div>
+
+                    <div className="mt-2 flex items-center gap-2">
                       {property.is_approved !== true && (
                         <button
                           onClick={() => handleApprove(property)}
                           disabled={updatingIds.includes(propertyId)}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 disabled:opacity-50"
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
                         >
-                          <FiCheck className="w-4 h-4" />
-                          {updatingIds.includes(propertyId) ? 'Approving...' : 'Approval'}
+                          <FiCheck className="h-4 w-4" />
+                          {updatingIds.includes(propertyId) ? 'Approving...' : 'Approve'}
                         </button>
                       )}
                       <button
                         onClick={() => handleDelete(propertyId)}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
+                        className={`${property.is_approved === true ? 'flex-1' : ''} inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 bg-white px-3 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50`}
                       >
-                        <FiTrash2 className="w-4 h-4" />
+                        <FiTrash2 className="h-4 w-4" />
                         Delete
                       </button>
                     </div>
