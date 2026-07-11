@@ -48,6 +48,18 @@ const fileInputClass =
   'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-blue-700 hover:file:bg-blue-100 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-none';
 const labelClass = 'block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5';
 
+const sectionSteps = {
+  'Mark Property Location': '01',
+  'Property Basic Details': '02',
+  'Property Classification': '03',
+  'Location Details': '04',
+  'Property Size & Pricing': '05',
+  'Pricing Details': '05',
+  'Property Specifications': '06',
+  'Features & Facilities': '07',
+  'Media Uploads': '08',
+};
+
 const getPayload = (response) => response?.data?.data ?? response?.data ?? response ?? {};
 
 const getItemsPayload = (response, keys = []) => {
@@ -394,15 +406,24 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     </div>
   );
 
-  const renderSection = (title, children, description) => (
-    <section className="rounded-xl border border-gray-100 bg-white p-4 md:p-5 shadow-sm">
-      <div className="mb-4 border-b border-gray-100 pb-3">
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-        {description && <p className="mt-1 text-xs text-gray-500">{description}</p>}
+  const renderSection = (title, children, description) => {
+    const isWide = title === 'Property Specifications' || title === 'Media Uploads';
+
+    return (
+    <section className={`rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-5 ${isWide ? 'lg:col-span-2' : ''}`}>
+      <div className="mb-5 flex items-start gap-3 border-b border-gray-100 pb-4">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white shadow-sm">
+          {sectionSteps[title] || '•'}
+        </span>
+        <div>
+          <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+          {description && <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-500">{description}</p>}
+        </div>
       </div>
       {children}
     </section>
-  );
+    );
+  };
 
   const locationMapSection = renderSection(
     'Mark Property Location',
@@ -559,27 +580,28 @@ export default function CreateProperty({ onSuccess, onCancel }) {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
-      <div className="rounded-2xl bg-white border border-gray-100 px-5 py-4 shadow-sm">
+    <div className="mx-auto max-w-7xl space-y-5">
+      <div className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-700 to-blue-500 px-5 py-5 text-white shadow-sm md:px-7">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Add Property</h1>
-            <p className="text-sm text-gray-500 mt-1">Create a complete listing with location, pricing, features, and media.</p>
+            <h1 className="text-2xl font-bold tracking-tight">Add Property</h1>
+            <p className="mt-1 text-sm text-blue-100">Create a complete listing in a few clear steps. Start by marking the exact location.</p>
           </div>
-          <div className="inline-flex w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-            New listing
+          <div className="inline-flex w-fit rounded-full border border-white/20 bg-white/15 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+            New property listing
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 shadow-sm">
-        <div className="p-4 md:p-6 space-y-5">
+      <form onSubmit={handleSubmit} className="overflow-hidden rounded-2xl border border-gray-200 bg-slate-50 shadow-sm">
+        <div className="space-y-5 p-4 md:p-6">
           {locationMapSection}
 
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
           {renderSection(
             'Property Basic Details',
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
                 <label className={labelClass}>Listing Type <span className="text-red-500">*</span></label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
@@ -607,13 +629,11 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                   ))}
                 </div>
               </div>
-              <div className="md:col-span-2">
+              <div className="sm:col-span-2">
                 {renderTextInput('name', 'Name', { required: true, placeholder: 'Property name' })}
               </div>
-              {renderTextInput('location', 'Location', { placeholder: 'Landmark or coordinates' })}
-              {renderTextInput('address', 'Address', { placeholder: 'Street address' })}
-              <div className="md:col-span-3">
-                <label className={labelClass}>Description</label>
+              <div className="sm:col-span-2">
+                <label className={labelClass}>Description <span className="font-normal normal-case text-gray-400">(optional)</span></label>
                 <textarea
                   value={formData.description}
                   onChange={(event) => updateField('description', event.target.value)}
@@ -621,13 +641,15 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                   placeholder="Short description"
                 />
               </div>
+              {renderTextInput('location', 'Locality / City', { required: true, placeholder: 'Automatically filled from map' })}
+              {renderTextInput('address', 'Full Address', { required: true, placeholder: 'Automatically filled; edit if needed' })}
             </div>,
-            'Start with the details buyers will recognize first.'
+            'Choose the listing purpose, then add the customer-facing title, description, and address.'
           )}
 
           {renderSection(
             'Property Classification',
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>Category <span className="text-red-500">*</span></label>
                 <select
@@ -663,7 +685,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                 </div>
               )}
             </div>,
-            'The selected type controls which pricing and specification fields are shown.'
+            'Classification controls which pricing and specification fields appear next.'
           )}
 
           {!hidesLocationDetails &&
@@ -808,11 +830,13 @@ export default function CreateProperty({ onSuccess, onCancel }) {
             'Images are required. Videos are optional and limited to two files.'
           )}
 
+          </div>
+
           {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
         </div>
 
-        <div className="border-t border-gray-200 bg-amber-50/60 px-4 py-4 md:px-6">
-          <label className="flex cursor-pointer items-start gap-3 text-sm text-gray-700">
+        <div className="border-t border-amber-200 bg-amber-50 px-4 py-4 md:px-6">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-white/70 p-3 text-sm text-gray-700">
             <input
               type="checkbox"
               checked={disclaimerAccepted}
@@ -828,11 +852,11 @@ export default function CreateProperty({ onSuccess, onCancel }) {
               <span className="ml-1 font-medium text-red-500">*</span>
             </span>
           </label>
-          <p className="ml-7 mt-1 text-xs text-gray-500">You must accept this disclaimer before submitting the property.</p>
+          <p className="ml-10 mt-2 text-xs text-gray-500">Required confirmation before the property can be submitted.</p>
         </div>
 
         <div className="sticky bottom-0 z-10 px-4 md:px-6 py-4 bg-white/95 backdrop-blur border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-gray-500">Fields marked with <span className="text-red-500">*</span> are required.</p>
+          <p className="text-xs text-gray-500"><span className="font-semibold text-gray-700">Ready to publish?</span> Review required fields marked with <span className="text-red-500">*</span>.</p>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
           <button
             type="button"
