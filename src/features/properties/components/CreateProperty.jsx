@@ -108,6 +108,18 @@ const getOptionName = (options, id) => {
   return found?.name || id;
 };
 
+const getDefaultRegionalForm = (countries = [], states = []) => {
+  const india = countries.find((country) => String(country.name).trim().toLowerCase() === 'india');
+  const kerala = states.find((state) => String(state.name).trim().toLowerCase() === 'kerala');
+
+  return {
+    ...emptyFormData(),
+    country_id: india ? String(india.id) : '',
+    state_id: kerala ? String(kerala.id) : '',
+    district_id: '',
+  };
+};
+
 const formatFileSize = (size) => {
   if (!Number.isFinite(size)) return '';
   if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
@@ -149,11 +161,19 @@ export default function CreateProperty({ onSuccess, onCancel }) {
 
         if (!mounted) return;
 
+        const normalizedCountries = normalizeOptions(getItemsPayload(countriesRes, ['countries']));
+        const india = normalizedCountries.find((country) => String(country.name).trim().toLowerCase() === 'india');
+
         setCategories(normalizeOptions(getItemsPayload(categoriesRes, ['propertyCategories', 'categories'])));
         setPropertyTypes(normalizeOptions(getItemsPayload(typesRes, ['propertyTypes', 'types'])));
         setFacilities(normalizeOptions(getItemsPayload(facilitiesRes, ['facilities'])));
         setAmenities(normalizeOptions(getItemsPayload(amenitiesRes, ['amenities'])));
-        setCountries(normalizeOptions(getItemsPayload(countriesRes, ['countries'])));
+        setCountries(normalizedCountries);
+        if (india) {
+          setFormData((current) => current.country_id
+            ? current
+            : { ...current, country_id: String(india.id), state_id: '', district_id: '' });
+        }
       } catch (e) {
         console.error('Failed to load property form options', e);
         if (!mounted) return;
@@ -205,8 +225,16 @@ export default function CreateProperty({ onSuccess, onCancel }) {
           page += 1;
         } while (page <= totalPages);
 
-        setStates(normalizeOptions(mergeById(allStates)));
+        const normalizedStates = normalizeOptions(mergeById(allStates));
+        const kerala = normalizedStates.find((state) => String(state.name).trim().toLowerCase() === 'kerala');
+
+        setStates(normalizedStates);
         setAllDistricts(normalizeOptions(mergeById(allDistrictsList)));
+        if (kerala) {
+          setFormData((current) => current.state_id
+            ? current
+            : { ...current, state_id: String(kerala.id), district_id: '' });
+        }
       } catch (e) {
         console.error('Failed to load states and districts', e);
         if (!mounted) return;
@@ -407,10 +435,10 @@ export default function CreateProperty({ onSuccess, onCancel }) {
   );
 
   const renderSection = (title, children, description) => {
-    const isWide = title === 'Property Specifications' || title === 'Media Uploads';
+    const isWide = !['Property Basic Details', 'Property Classification'].includes(title);
 
     return (
-    <section className={`rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-5 ${isWide ? 'lg:col-span-2' : ''}`}>
+    <section className={`h-full rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-5 ${isWide ? 'lg:col-span-2' : ''}`}>
       <div className="mb-5 flex items-start gap-3 border-b border-gray-100 pb-4">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white shadow-sm">
           {sectionSteps[title] || '•'}
@@ -560,7 +588,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
         ...propertyTypePayload,
       });
       toast.success('Property created successfully');
-      setFormData(emptyFormData());
+      setFormData(getDefaultRegionalForm(countries, states));
       setDisclaimerAccepted(false);
       setMediaInputKey((current) => current + 1);
       onSuccess?.(response);
@@ -573,7 +601,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
   };
 
   const handleReset = () => {
-    setFormData(emptyFormData());
+    setFormData(getDefaultRegionalForm(countries, states));
     setDisclaimerAccepted(false);
     setError(null);
     setMediaInputKey((current) => current + 1);
@@ -597,7 +625,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
         <div className="space-y-5 p-4 md:p-6">
           {locationMapSection}
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-stretch">
           {renderSection(
             'Property Basic Details',
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -691,7 +719,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
           {!hidesLocationDetails &&
             renderSection(
               'Location Details',
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className={labelClass}>Country</label>
                   <select value={formData.country_id} onChange={(event) => handleSelect(event, 'country_id')} className={inputClass}>
