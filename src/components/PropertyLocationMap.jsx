@@ -167,17 +167,9 @@ export default function PropertyLocationMap({ latitude, longitude, onLocationCha
           <button type="button" onClick={handleSearch} disabled={searching || !query.trim()} className="rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{searching ? 'Searching…' : 'Search'}</button>
         </div>
         {(results.length > 0 || (searchAttempted && !searching && !error)) && (
-          <div className="relative z-[1001] mt-2 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-sm" aria-label="Location search results">
+          <div className="absolute z-[1001] mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
             {results.length > 0 ? results.map((result) => (
-              <button
-                key={`${result.place_id}-${result.lat}`}
-                type="button"
-                onClick={() => chooseResult(result)}
-                className="block w-full border-b border-gray-100 px-3 py-3 text-left last:border-0 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
-              >
-                <span className="block text-sm font-medium text-gray-800">{result.name || result.display_name?.split(',')[0]}</span>
-                <span className="mt-0.5 block text-xs leading-5 text-gray-500">{result.display_name}</span>
-              </button>
+              <button key={`${result.place_id}-${result.lat}`} type="button" onClick={() => chooseResult(result)} className="block w-full border-b border-gray-100 px-3 py-2.5 text-left text-sm text-gray-700 last:border-0 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none">{result.display_name}</button>
             )) : <p className="px-3 py-3 text-sm text-gray-500">No matching places found.</p>}
           </div>
         )}
