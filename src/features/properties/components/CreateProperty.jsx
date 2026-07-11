@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import PropertyLocationMap from '../../../components/PropertyLocationMap';
 import {
   createProperty,
   getAmenities,
@@ -15,6 +16,8 @@ const emptyFormData = () => ({
   description: '',
   location: '',
   address: '',
+  latitude: '',
+  longitude: '',
   property_category_ids: '',
   property_type_ids: '',
   property_type_value: '',
@@ -62,6 +65,17 @@ const getItemsPayload = (response, keys = []) => {
   return [];
 };
 
+const mergeById = (items) => {
+  const seen = new Set();
+
+  return items.filter((item) => {
+    const key = item?.id ?? item?._id ?? item?.name;
+    if (!key || seen.has(String(key))) return false;
+    seen.add(String(key));
+    return true;
+  });
+};
+
 const normalizeOptions = (items) =>
   (Array.isArray(items) ? items : []).map((item) => {
     if (item && typeof item === 'object') {
@@ -100,6 +114,8 @@ export default function CreateProperty({ onSuccess, onCancel }) {
   const [listsLoading, setListsLoading] = useState(false);
   const [locationsLoading, setLocationsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [locationResolving, setLocationResolving] = useState(false);
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [error, setError] = useState(null);
   const [mediaInputKey, setMediaInputKey] = useState(0);
 
@@ -154,15 +170,31 @@ export default function CreateProperty({ onSuccess, onCancel }) {
 
       try {
         setLocationsLoading(true);
-        const response = await getCountryStatesDistricts(formData.country_id);
-        if (!mounted) return;
+        const allStates = [];
+        const allDistrictsList = [];
+        let page = 1;
+        let totalPages = 1;
 
-        const payload = getPayload(response);
-        const stateList = payload?.states ?? payload?.country?.states ?? [];
-        const districtList = payload?.districts ?? payload?.country?.districts ?? [];
+        do {
+          const response = await getCountryStatesDistricts(formData.country_id, { page, limit: 100 });
+          if (!mounted) return;
 
-        setStates(normalizeOptions(stateList));
-        setAllDistricts(normalizeOptions(districtList));
+          const payload = getPayload(response);
+          const stateList = payload?.states ?? payload?.country?.states ?? [];
+          const districtList = [
+            ...(payload?.districts ?? payload?.country?.districts ?? []),
+            ...stateList.flatMap((state) => state?.districts ?? []),
+          ];
+
+          allStates.push(...stateList);
+          allDistrictsList.push(...districtList);
+
+          totalPages = payload?.pagination?.totalPages ?? payload?.meta?.totalPages ?? page;
+          page += 1;
+        } while (page <= totalPages);
+
+        setStates(normalizeOptions(mergeById(allStates)));
+        setAllDistricts(normalizeOptions(mergeById(allDistrictsList)));
       } catch (e) {
         console.error('Failed to load states and districts', e);
         if (!mounted) return;
@@ -245,6 +277,15 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     setFormData((current) => {
       const next = { ...current, [key]: value };
 
+      if (key === 'is_rented' && value === '1') {
+        next.property_type_ids = '';
+        next.property_type_value = '';
+        next.per_cent = '';
+        next.total_cent = '';
+        next.bhk = '';
+        next.sq_feet = '';
+      }
+
       if (key === 'per_cent' || key === 'total_cent') {
         next.amount = calculateAmount(
           key === 'per_cent' ? value : next.per_cent,
@@ -297,6 +338,17 @@ export default function CreateProperty({ onSuccess, onCancel }) {
 
     setError(null);
     updateField('property_videos_files', files);
+  };
+
+  const handleMapLocationChange = ({ latitude, longitude, address, location }) => {
+    setError(null);
+    setFormData((current) => ({
+      ...current,
+      latitude: String(latitude ?? ''),
+      longitude: String(longitude ?? ''),
+      address: address ?? current.address,
+      location: location ?? current.location,
+    }));
   };
 
   const addSelectedOption = (event, key) => {
@@ -352,6 +404,30 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     </section>
   );
 
+  const locationMapSection = renderSection(
+    'Mark Property Location',
+    <div className="space-y-4">
+      <PropertyLocationMap
+        latitude={formData.latitude}
+        longitude={formData.longitude}
+        address={formData.address}
+        onLocationChange={handleMapLocationChange}
+        onResolvingChange={setLocationResolving}
+      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className={labelClass}>Latitude <span className="text-red-500">*</span></label>
+          <input readOnly value={formData.latitude} placeholder="Select on map" className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Longitude <span className="text-red-500">*</span></label>
+          <input readOnly value={formData.longitude} placeholder="Select on map" className={inputClass} />
+        </div>
+      </div>
+    </div>,
+    'Search for a city, locality, landmark, or full address, then fine-tune the marker.'
+  );
+
   const renderSelectedChips = (key, options) =>
     formData[key].length > 0 && (
       <div className="flex flex-wrap gap-2 mt-2">
@@ -401,6 +477,27 @@ export default function CreateProperty({ onSuccess, onCancel }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (!disclaimerAccepted) {
+      setError('Please accept the disclaimer before submitting the property.');
+      return;
+    }
+
+    const latitude = Number(formData.latitude);
+    const longitude = Number(formData.longitude);
+    if (
+      formData.latitude === '' ||
+      formData.longitude === '' ||
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      setError('Select a valid property location on the map before submitting.');
+      return;
+    }
+
     if (formData.property_videos_files.length > 2) {
       setError('Maximum 2 videos allowed.');
       return;
@@ -410,16 +507,40 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     setError(null);
 
     try {
-      const { amount, ...restFormData } = formData;
+      const {
+        amount,
+        property_type_ids: propertyTypeId,
+        property_type_value: propertyTypeValue,
+        per_cent: perCent,
+        total_cent: totalCent,
+        bhk,
+        sq_feet: sqFeet,
+        latitude: ignoredLatitude,
+        longitude: ignoredLongitude,
+        ...restFormData
+      } = formData;
+      void ignoredLatitude;
+      void ignoredLongitude;
+      const propertyTypePayload =
+        !isRental && propertyTypeId ? { property_type_ids: [propertyTypeId], property_type_value: propertyTypeValue } : {};
+      const plotPayload = !isRental ? { per_cent: perCent, total_cent: totalCent } : {};
+      const bhkPayload = !isRental ? { bhk } : {};
+      const sqFeetPayload = !isRental ? { sq_feet: sqFeet } : {};
       const response = await createProperty({
         ...restFormData,
-        is_rented: isRental ? 1 : 0,
+        ...plotPayload,
+        ...bhkPayload,
+        ...sqFeetPayload,
+        is_rented: isRental,
+        latitude,
+        longitude,
         ...(isRental ? { amount_per_month: amount } : { amount }),
         property_category_ids: formData.property_category_ids ? [formData.property_category_ids] : [],
-        property_type_ids: formData.property_type_ids ? [formData.property_type_ids] : [],
+        ...propertyTypePayload,
       });
       toast.success('Property created successfully');
       setFormData(emptyFormData());
+      setDisclaimerAccepted(false);
       setMediaInputKey((current) => current + 1);
       onSuccess?.(response);
     } catch (e) {
@@ -432,6 +553,7 @@ export default function CreateProperty({ onSuccess, onCancel }) {
 
   const handleReset = () => {
     setFormData(emptyFormData());
+    setDisclaimerAccepted(false);
     setError(null);
     setMediaInputKey((current) => current + 1);
   };
@@ -452,6 +574,8 @@ export default function CreateProperty({ onSuccess, onCancel }) {
 
       <form onSubmit={handleSubmit} className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 shadow-sm">
         <div className="p-4 md:p-6 space-y-5">
+          {locationMapSection}
+
           {renderSection(
             'Property Basic Details',
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -520,22 +644,24 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className={labelClass}>Property Type <span className="text-red-500">*</span></label>
-                <select
-                  value={formData.property_type_ids}
-                  onChange={(event) => handleSelect(event, 'property_type_ids')}
-                  className={inputClass}
-                  required
-                >
-                  <option value="">{listsLoading ? 'Loading types...' : 'Select type'}</option>
-                  {propertyTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {!isRental && (
+                <div>
+                  <label className={labelClass}>Property Type <span className="text-red-500">*</span></label>
+                  <select
+                    value={formData.property_type_ids}
+                    onChange={(event) => handleSelect(event, 'property_type_ids')}
+                    className={inputClass}
+                    required
+                  >
+                    <option value="">{listsLoading ? 'Loading types...' : 'Select type'}</option>
+                    {propertyTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>,
             'The selected type controls which pricing and specification fields are shown.'
           )}
@@ -596,8 +722,8 @@ export default function CreateProperty({ onSuccess, onCancel }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {isPlotType && renderTextInput('per_cent', 'Per Cent', { type: 'number', min: '0' })}
               {isPlotType && renderTextInput('total_cent', 'Total Cent', { type: 'number', min: '0' })}
-              {isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
-              {!isPlotType && !isBuildingType && renderTextInput('total_cent', 'Total Cent', { type: 'number', min: '0' })}
+              {!isRental && isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
+              {!isRental && !isPlotType && !isBuildingType && renderTextInput('total_cent', 'Total Cent', { type: 'number', min: '0' })}
               {renderTextInput('amount', isRental ? 'Amount Per Month' : 'Amount', { type: 'number', min: '0', required: true })}
             </div>,
             isPlotType ? 'For plots, amount is calculated from per cent and total cent when both values are entered.' : 'Add the size and final listing amount.'
@@ -607,12 +733,12 @@ export default function CreateProperty({ onSuccess, onCancel }) {
             renderSection(
               'Property Specifications',
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {renderTextInput('bhk', 'BHK', { type: 'number', min: '0' })}
+                {!isRental && renderTextInput('bhk', 'BHK', { type: 'number', min: '0' })}
                 {renderTextInput('no_of_bedrooms', 'Bedrooms', { type: 'number', min: '0' })}
                 {renderTextInput('no_of_bathrooms', 'Bathrooms', { type: 'number', min: '0' })}
                 {renderTextInput('no_of_kitchen', 'Kitchen', { type: 'number', min: '0' })}
                 {renderTextInput('no_of_halls', 'Halls', { type: 'number', min: '0' })}
-                {!isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
+                {!isRental && !isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
               </div>,
               'Optional room and layout details for built properties.'
             )}
@@ -685,6 +811,26 @@ export default function CreateProperty({ onSuccess, onCancel }) {
           {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
         </div>
 
+        <div className="border-t border-gray-200 bg-amber-50/60 px-4 py-4 md:px-6">
+          <label className="flex cursor-pointer items-start gap-3 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={disclaimerAccepted}
+              onChange={(event) => {
+                setDisclaimerAccepted(event.target.checked);
+                if (event.target.checked) setError(null);
+              }}
+              required
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+            />
+            <span>
+              I confirm that the property details, location, pricing, and uploaded media are accurate and that I am authorized to publish this listing.
+              <span className="ml-1 font-medium text-red-500">*</span>
+            </span>
+          </label>
+          <p className="ml-7 mt-1 text-xs text-gray-500">You must accept this disclaimer before submitting the property.</p>
+        </div>
+
         <div className="sticky bottom-0 z-10 px-4 md:px-6 py-4 bg-white/95 backdrop-blur border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-gray-500">Fields marked with <span className="text-red-500">*</span> are required.</p>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -692,16 +838,16 @@ export default function CreateProperty({ onSuccess, onCancel }) {
             type="button"
             onClick={onCancel || handleReset}
             className="w-full sm:w-auto px-5 py-2.5 border border-gray-200 bg-white text-gray-700 font-medium rounded-lg hover:bg-gray-50"
-            disabled={submitting}
+            disabled={submitting || locationResolving}
           >
             {onCancel ? 'Cancel' : 'Reset'}
           </button>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || locationResolving || !disclaimerAccepted}
             className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60"
           >
-            {submitting ? 'Submitting...' : 'Add Property'}
+            {submitting ? 'Submitting...' : locationResolving ? 'Resolving location...' : 'Add Property'}
           </button>
           </div>
         </div>

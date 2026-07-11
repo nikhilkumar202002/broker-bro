@@ -148,6 +148,7 @@ export const getNotApprovedProperties = (params) => getProperties({ ...(params |
 export const getApprovedProperties = (params) => getProperties({ ...(params || {}), is_approved: true });
 export const getRejectedProperties = (params) => getProperties({ ...(params || {}), is_approved: false });
 export const getProperty = (id) => api.get(`/properties/${id}`);
+export const deleteProperty = (id) => api.delete(`/properties/${id}`);
 export const approveProperty = (id) => api.patch(`/properties/${id}/approve`);
 export const updatePropertyStatus = (id, data) => api.patch(`/properties/${id}/status`, data);
 export const featureProperty = (id) => api.patch(`/properties/${id}/feature`);

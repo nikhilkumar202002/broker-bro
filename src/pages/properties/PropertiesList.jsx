@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import CreateProperty from '../../features/properties/components/CreateProperty';
-import { getCategories, getProperties, getPropertyTypes, getPropertyStatuses, approveProperty, featureProperty, unfeatureProperty, updatePropertyStatus } from '../../services/api';
+import { getCategories, getProperties, getPropertyTypes, getPropertyStatuses, approveProperty, featureProperty, unfeatureProperty, updatePropertyStatus, deleteProperty } from '../../services/api';
 import toast from 'react-hot-toast';
 import { FiCheck, FiTrash2, FiEye, FiStar, FiPower, FiChevronLeft, FiChevronRight, FiMapPin, FiCalendar, FiHome } from 'react-icons/fi';
 
@@ -9,35 +9,35 @@ const initialProperties = [];
 const PropertyCardSkeleton = () => (
   <article className="h-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
     <div className="animate-pulse">
-      <div className="h-56 bg-gray-200" />
+      <div className="h-32 bg-gray-200" />
 
-      <div className="p-5">
+      <div className="p-4">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-3">
-            <div className="h-5 w-48 rounded bg-gray-200" />
-            <div className="h-3 w-32 rounded bg-gray-100" />
+          <div className="space-y-2">
+            <div className="h-4 w-44 rounded bg-gray-200" />
+            <div className="h-3 w-28 rounded bg-gray-100" />
           </div>
-          <div className="h-7 w-20 shrink-0 rounded-full bg-gray-100" />
+          <div className="h-6 w-16 shrink-0 rounded-full bg-gray-100" />
         </div>
 
-        <div className="mt-5 grid grid-cols-3 gap-3">
+        <div className="mt-4 grid grid-cols-3 gap-2">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="rounded-xl border border-gray-100 p-3">
-              <div className="h-3 w-14 rounded bg-gray-100" />
-              <div className="mt-3 h-4 w-20 rounded bg-gray-200" />
+            <div key={index} className="rounded-xl border border-gray-100 p-2">
+              <div className="h-2.5 w-12 rounded bg-gray-100" />
+              <div className="mt-2 h-3.5 w-16 rounded bg-gray-200" />
             </div>
           ))}
         </div>
 
-        <div className="mt-5 space-y-2">
+        <div className="mt-4 space-y-2">
           <div className="h-3 w-full rounded bg-gray-100" />
           <div className="h-3 w-4/5 rounded bg-gray-100" />
         </div>
 
-        <div className="mt-5 flex gap-2">
-          <div className="h-10 flex-1 rounded-xl bg-gray-100" />
-          <div className="h-10 w-10 rounded-xl bg-gray-100" />
-          <div className="h-10 w-10 rounded-xl bg-gray-100" />
+        <div className="mt-4 flex gap-2">
+          <div className="h-9 flex-1 rounded-xl bg-gray-100" />
+          <div className="h-9 w-9 rounded-xl bg-gray-100" />
+          <div className="h-9 w-9 rounded-xl bg-gray-100" />
         </div>
       </div>
     </div>
@@ -212,8 +212,24 @@ const isPropertyFeatured = (property) =>
   String(property?.is_featured).toLowerCase() === 'true' ||
   String(property?.featured).toLowerCase() === 'true';
 
+const getStatusValue = (property) => {
+  const status = property?.status;
+
+  if (status && typeof status === 'object') {
+    return status.value ?? status.name ?? status.status ?? status.label;
+  }
+
+  const propertyStatus = property?.property_status;
+
+  if (propertyStatus && typeof propertyStatus === 'object') {
+    return propertyStatus.value ?? propertyStatus.name ?? propertyStatus.status ?? propertyStatus.label;
+  }
+
+  return status ?? propertyStatus ?? property?.is_active ?? property?.is_activated;
+};
+
 const isPropertyActive = (property) => {
-  const status = property?.status ?? property?.property_status?.value ?? property?.property_status?.name ?? property?.property_status;
+  const status = getStatusValue(property);
 
   return status === true ||
     status === 1 ||
@@ -231,6 +247,8 @@ export default function PropertiesList() {
   const [statusOptions, setStatusOptions] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [viewingProperty, setViewingProperty] = useState(null);
+  const [propertyToDelete, setPropertyToDelete] = useState(null);
+  const [deletingProperty, setDeletingProperty] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [meta, setMeta] = useState(null);
@@ -313,8 +331,35 @@ export default function PropertiesList() {
     fetchStatuses();
   }, []);
 
-  const handleDelete = (id) => {
-    setProperties((prev) => prev.filter((p) => getPropertyId(p) !== id));
+  const handleDelete = (property) => {
+    setPropertyToDelete(property);
+  };
+
+  const confirmDelete = async () => {
+    const id = getPropertyId(propertyToDelete);
+
+    if (!id) {
+      setPropertyToDelete(null);
+      return;
+    }
+
+    try {
+      setDeletingProperty(true);
+      await deleteProperty(id);
+      setProperties((prev) => prev.filter((p) => getPropertyId(p) !== id));
+      setViewingProperty((current) => (getPropertyId(current) === id ? null : current));
+      setGalleryIndexes((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setPropertyToDelete(null);
+      toast.success('Property deleted');
+    } catch (e) {
+      console.error('Delete property failed', e);
+    } finally {
+      setDeletingProperty(false);
+    }
   };
 
   const handleCreateSuccess = () => {
@@ -397,7 +442,7 @@ export default function PropertiesList() {
             : item
         )
       );
-      toast.success(nextStatus === 'active' ? 'Property activated' : 'Property set as unactive');
+      toast.success(nextStatus === 'active' ? 'Property activated' : 'Property set as inactive');
     } catch (e) {
       console.error('Status update failed', e);
     } finally {
@@ -484,7 +529,7 @@ export default function PropertiesList() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-5">
         {loading ? (
-          Array.from({ length: 4 }).map((_, index) => <PropertyCardSkeleton key={index} />)
+          Array.from({ length: 3 }).map((_, index) => <PropertyCardSkeleton key={index} />)
         ) : error ? (
           <div className="lg:col-span-2 2xl:col-span-3 bg-white border border-red-100 rounded-xl px-5 py-10 text-center text-sm text-red-500 shadow-sm">
             {error}
@@ -530,7 +575,7 @@ export default function PropertiesList() {
                         isActive ? 'bg-emerald-500 text-white' : 'bg-white/90 text-gray-600'
                       }`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-white' : 'bg-gray-400'}`} />
-                        {isActive ? 'Live' : 'Unactive'}
+                        {isActive ? 'Live' : 'Inactive'}
                       </span>
                     </div>
                   </div>
@@ -635,10 +680,20 @@ export default function PropertiesList() {
                         <FiEye className="h-4 w-4" />
                         View Details
                       </button>
+                      {property.is_approved !== true && (
+                        <button
+                          onClick={() => handleApprove(property)}
+                          disabled={updatingIds.includes(propertyId)}
+                          className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-blue-50 px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                        >
+                          <FiCheck className="h-4 w-4" />
+                          <span className="hidden sm:inline">{updatingIds.includes(propertyId) ? 'Approving...' : 'Approve'}</span>
+                        </button>
+                      )}
                       <button
                         onClick={() => handleToggleStatus(property)}
                         disabled={statusUpdatingIds.includes(propertyId)}
-                        title={isActive ? 'Set as unactive' : 'Set as active'}
+                        title={isActive ? 'Set as inactive' : 'Set as active'}
                         className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm font-semibold transition disabled:opacity-50 ${
                           isActive
                             ? 'border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
@@ -659,25 +714,12 @@ export default function PropertiesList() {
                       >
                         <FiStar className={`h-4 w-4 ${isFeatured ? 'fill-current' : ''}`} />
                       </button>
-                    </div>
-
-                    <div className="mt-2 flex items-center gap-2">
-                      {property.is_approved !== true && (
-                        <button
-                          onClick={() => handleApprove(property)}
-                          disabled={updatingIds.includes(propertyId)}
-                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
-                        >
-                          <FiCheck className="h-4 w-4" />
-                          {updatingIds.includes(propertyId) ? 'Approving...' : 'Approve'}
-                        </button>
-                      )}
                       <button
-                        onClick={() => handleDelete(propertyId)}
-                        className={`${property.is_approved === true ? 'flex-1' : ''} inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 bg-white px-3 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50`}
+                        onClick={() => handleDelete(property)}
+                        title="Delete property"
+                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-white text-red-600 transition hover:bg-red-50"
                       >
                         <FiTrash2 className="h-4 w-4" />
-                        Delete
                       </button>
                     </div>
                   </div>
@@ -812,6 +854,43 @@ export default function PropertiesList() {
                   <div className="mt-1 text-gray-800">{Array.isArray(viewingProperty.property_videos) ? viewingProperty.property_videos.length : 0}</div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {propertyToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !deletingProperty && setPropertyToDelete(null)} />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl">
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                <FiTrash2 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-gray-950">Delete property?</h2>
+                <p className="mt-2 text-sm leading-6 text-gray-500">
+                  Are you sure you want to delete <span className="font-semibold text-gray-800">{propertyToDelete.name || 'this property'}</span>? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setPropertyToDelete(null)}
+                disabled={deletingProperty}
+                className="inline-flex justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deletingProperty}
+                className="inline-flex justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-70"
+              >
+                {deletingProperty ? 'Deleting...' : 'Delete Property'}
+              </button>
             </div>
           </div>
         </div>
