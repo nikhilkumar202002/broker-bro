@@ -12,6 +12,7 @@ import {
 } from '../../../services/api';
 
 const emptyFormData = () => ({
+  listing_purpose: 'sale',
   name: '',
   description: '',
   location: '',
@@ -29,6 +30,8 @@ const emptyFormData = () => ({
   per_cent: '',
   total_cent: '',
   amount: '',
+  security_deposit: '',
+  lease_duration: '',
   bhk: '',
   no_of_bedrooms: '',
   no_of_bathrooms: '',
@@ -49,16 +52,47 @@ const fileInputClass =
 const labelClass = 'block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5';
 
 const sectionSteps = {
-  'Mark Property Location': '01',
-  'Property Basic Details': '02',
-  'Property Classification': '03',
-  'Location Details': '04',
-  'Property Size & Pricing': '05',
-  'Pricing Details': '05',
-  'Property Specifications': '06',
-  'Features & Facilities': '07',
-  'Media Uploads': '08',
+  'Listing Purpose': '01',
+  'Property Classification': '02',
+  'Property Basic Details': '03',
+  'Property Size & Pricing': '04',
+  'Pricing Details': '04',
+  'Property Specifications': '05',
+  'Mark Property Location': '06',
+  'Location Details': '06',
+  'Media Uploads': '07',
+  'Features & Facilities': '08',
 };
+
+const PURPOSES = [
+  { value: 'sale', label: 'For Sale', description: 'Offer this property for purchase.' },
+  { value: 'rent', label: 'For Rent', description: 'Charge a recurring monthly rent.' },
+  { value: 'lease', label: 'For Lease', description: 'Offer a fixed-term property lease.' },
+];
+
+const CATEGORY_TAXONOMY = [
+  { kind: 'residential', label: 'Residential', terms: ['residential'] },
+  { kind: 'commercial', label: 'Commercial', terms: ['commercial'] },
+];
+
+const TYPE_TAXONOMY = {
+  residential: [
+    { value: 'flat-apartment', label: 'Flat or Apartment', terms: ['flat', 'apartment'] },
+    { value: 'house-villa', label: 'House or Villa', terms: ['house', 'villa'] },
+    { value: 'land-plot-farm-house', label: 'Land, Plot, or Farm House', terms: ['land', 'plot', 'farm house', 'farmhouse'] },
+    { value: 'builder-floor', label: 'Builder Floor', terms: ['builder floor'] },
+    { value: 'pg-coliving', label: 'PG or Co-Living Property', terms: ['pg', 'co-living', 'coliving', 'paying guest'] },
+  ],
+  commercial: [
+    { value: 'building-showroom', label: 'Building or Showroom', terms: ['building', 'showroom'] },
+    { value: 'retail-office', label: 'Retail Shop or Office', terms: ['retail', 'shop', 'office'] },
+    { value: 'land-plot-farm-house', label: 'Land, Plot, or Farm House', terms: ['land', 'plot', 'farm house', 'farmhouse'] },
+    { value: 'warehouse-godown', label: 'Warehouse or Godown', terms: ['warehouse', 'godown'] },
+    { value: 'factory-manufacturing', label: 'Factory or Manufacturing', terms: ['factory', 'manufacturing'] },
+  ],
+};
+
+const normalizeText = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ');
 
 const getPayload = (response) => response?.data?.data ?? response?.data ?? response ?? {};
 
@@ -293,7 +327,42 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     return filtered.length > 0 ? filtered : allDistricts;
   }, [formData.state_id, allDistricts]);
 
-  const selectedPropertyType = propertyTypes.find((type) => String(type.id) === String(formData.property_type_ids));
+  const visibleCategories = useMemo(() => {
+    return CATEGORY_TAXONOMY.map((definition) => {
+      const apiCategory = categories.find((category) => {
+        const categoryText = normalizeText(category.name);
+        return definition.terms.some((term) => categoryText.includes(normalizeText(term)));
+      });
+
+      return {
+        ...(apiCategory || {}),
+        id: apiCategory?.id ?? definition.kind,
+        name: definition.label,
+        kind: definition.kind,
+      };
+    });
+  }, [categories]);
+
+  const selectedCategory = visibleCategories.find((category) => String(category.id) === String(formData.property_category_ids));
+  const categoryKey = selectedCategory?.kind || '';
+  const visiblePropertyTypes = useMemo(() => {
+    if (!categoryKey) return [];
+    return TYPE_TAXONOMY[categoryKey].map((definition) => {
+      const apiType = propertyTypes.find((type) => {
+        const typeText = normalizeText(`${type.value || ''} ${type.name || ''}`);
+        return definition.terms.some((term) => typeText.includes(normalizeText(term)));
+      });
+
+      return {
+        ...(apiType || {}),
+        id: apiType?.id ?? definition.value,
+        name: definition.label,
+        taxonomyValue: definition.value,
+      };
+    });
+  }, [categoryKey, propertyTypes]);
+
+  const selectedPropertyType = visiblePropertyTypes.find((type) => String(type.id) === String(formData.property_type_ids));
   const selectedTypeText = `${selectedPropertyType?.value || ''} ${selectedPropertyType?.name || ''} ${formData.property_type_value || ''}`.toLowerCase();
   const isPlotType = selectedTypeText.includes('plot') || selectedTypeText.includes('land');
   const isBuildingType =
@@ -303,7 +372,8 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     selectedTypeText.includes('apartment') ||
     selectedTypeText.includes('villa');
   const hidesLocationDetails = isPlotType || isBuildingType;
-  const isRental = String(formData.is_rented) === '1';
+  const isRental = formData.listing_purpose === 'rent';
+  const isLease = formData.listing_purpose === 'lease';
 
   const calculateAmount = (perCent, totalCent) => {
     const perCentNumber = Number(perCent);
@@ -317,13 +387,14 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     setFormData((current) => {
       const next = { ...current, [key]: value };
 
-      if (key === 'is_rented' && value === '1') {
-        next.property_type_ids = '';
-        next.property_type_value = '';
-        next.per_cent = '';
-        next.total_cent = '';
-        next.bhk = '';
-        next.sq_feet = '';
+      if (key === 'listing_purpose') {
+        next.is_rented = value === 'sale' ? '0' : '1';
+        if (value === 'sale') {
+          next.security_deposit = '';
+          next.lease_duration = '';
+        } else if (value === 'rent') {
+          next.lease_duration = '';
+        }
       }
 
       if (key === 'per_cent' || key === 'total_cent') {
@@ -341,11 +412,23 @@ export default function CreateProperty({ onSuccess, onCancel }) {
     const value = event.target.value;
 
     if (key === 'property_type_ids') {
-      const selected = propertyTypes.find((type) => String(type.id) === String(value));
+      const selected = visiblePropertyTypes.find((type) => String(type.id) === String(value));
       setFormData((current) => ({
         ...current,
         property_type_ids: value,
-        property_type_value: selected?.value || selected?.name || '',
+        property_type_value: selected?.taxonomyValue || selected?.value || selected?.name || '',
+      }));
+      return;
+    }
+
+    if (key === 'property_category_ids') {
+      setFormData((current) => ({
+        ...current,
+        property_category_ids: value,
+        property_type_ids: '',
+        property_type_value: '',
+        per_cent: '',
+        total_cent: '',
       }));
       return;
     }
@@ -436,9 +519,18 @@ export default function CreateProperty({ onSuccess, onCancel }) {
 
   const renderSection = (title, children, description) => {
     const isWide = !['Property Basic Details', 'Property Classification'].includes(title);
+    const orderClass = title === 'Property Classification'
+      ? 'order-1'
+      : ['Property Basic Details', 'Property Specifications'].includes(title)
+        ? 'order-2'
+        : ['Property Size & Pricing', 'Pricing Details'].includes(title)
+          ? 'order-3'
+          : ['Mark Property Location', 'Location Details'].includes(title)
+            ? 'order-4'
+            : title === 'Media Uploads' ? 'order-5' : 'order-6';
 
     return (
-    <section className={`h-full rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-5 ${isWide ? 'lg:col-span-2' : ''}`}>
+    <section className={`h-full rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-5 ${orderClass} ${isWide ? 'lg:col-span-2' : ''}`}>
       <div className="mb-5 flex items-start gap-3 border-b border-gray-100 pb-4">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white shadow-sm">
           {sectionSteps[title] || '•'}
@@ -472,6 +564,8 @@ export default function CreateProperty({ onSuccess, onCancel }) {
           <label className={labelClass}>Longitude <span className="text-red-500">*</span></label>
           <input readOnly value={formData.longitude} placeholder="Select on map" className={inputClass} />
         </div>
+        {renderTextInput('location', 'Locality / City', { required: true, placeholder: 'Automatically filled from map' })}
+        {renderTextInput('address', 'Full Address', { required: true, placeholder: 'Automatically filled; edit if needed' })}
       </div>
     </div>,
     'Search for a city, locality, landmark, or full address, then fine-tune the marker.'
@@ -571,16 +665,17 @@ export default function CreateProperty({ onSuccess, onCancel }) {
       void ignoredLatitude;
       void ignoredLongitude;
       const propertyTypePayload =
-        !isRental && propertyTypeId ? { property_type_ids: [propertyTypeId], property_type_value: propertyTypeValue } : {};
-      const plotPayload = !isRental ? { per_cent: perCent, total_cent: totalCent } : {};
-      const bhkPayload = !isRental ? { bhk } : {};
-      const sqFeetPayload = !isRental ? { sq_feet: sqFeet } : {};
+        propertyTypeId ? { property_type_ids: [propertyTypeId], property_type_value: propertyTypeValue } : {};
+      const plotPayload = { per_cent: perCent, total_cent: totalCent };
+      const bhkPayload = { bhk };
+      const sqFeetPayload = { sq_feet: sqFeet };
       const response = await createProperty({
         ...restFormData,
         ...plotPayload,
         ...bhkPayload,
         ...sqFeetPayload,
-        is_rented: isRental,
+        listing_purpose: formData.listing_purpose,
+        is_rented: isRental || isLease,
         latitude,
         longitude,
         ...(isRental ? { amount_per_month: amount } : { amount }),
@@ -623,40 +718,26 @@ export default function CreateProperty({ onSuccess, onCancel }) {
 
       <form onSubmit={handleSubmit} className="overflow-hidden rounded-2xl border border-gray-200 bg-slate-50 shadow-sm">
         <div className="space-y-5 p-4 md:p-6">
-          {locationMapSection}
+          {renderSection(
+            'Listing Purpose',
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {PURPOSES.map((purpose) => (
+                <label key={purpose.value} className={`cursor-pointer rounded-xl border p-3 transition-colors ${formData.listing_purpose === purpose.value ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-2">
+                    <input type="radio" name="listing_purpose" value={purpose.value} checked={formData.listing_purpose === purpose.value} onChange={(event) => updateField('listing_purpose', event.target.value)} className="h-4 w-4 text-blue-600 focus:ring-blue-500" />
+                    <span className="text-sm font-semibold text-gray-900">{purpose.label}</span>
+                  </div>
+                  <p className="ml-6 mt-1 text-xs text-gray-500">{purpose.description}</p>
+                </label>
+              ))}
+            </div>,
+            'Choose how this property will be offered before selecting its classification.'
+          )}
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-stretch">
           {renderSection(
             'Property Basic Details',
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className={labelClass}>Listing Type <span className="text-red-500">*</span></label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    { value: '0', label: 'For Selling' },
-                    { value: '1', label: 'For Rental' },
-                  ].map((option) => (
-                    <label
-                      key={option.value}
-                      className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
-                        formData.is_rented === option.value
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="is_rented"
-                        value={option.value}
-                        checked={formData.is_rented === option.value}
-                        onChange={(event) => updateField('is_rented', event.target.value)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      {option.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
               <div className="sm:col-span-2">
                 {renderTextInput('name', 'Name', { required: true, placeholder: 'Property name' })}
               </div>
@@ -669,8 +750,6 @@ export default function CreateProperty({ onSuccess, onCancel }) {
                   placeholder="Short description"
                 />
               </div>
-              {renderTextInput('location', 'Locality / City', { required: true, placeholder: 'Automatically filled from map' })}
-              {renderTextInput('address', 'Full Address', { required: true, placeholder: 'Automatically filled; edit if needed' })}
             </div>,
             'Choose the listing purpose, then add the customer-facing title, description, and address.'
           )}
@@ -680,38 +759,32 @@ export default function CreateProperty({ onSuccess, onCancel }) {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>Category <span className="text-red-500">*</span></label>
-                <select
-                  value={formData.property_category_ids}
-                  onChange={(event) => handleSelect(event, 'property_category_ids')}
-                  className={inputClass}
-                  required
-                >
-                  <option value="">{listsLoading ? 'Loading categories...' : 'Select category'}</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
+                <div className="grid grid-cols-2 gap-2">
+                  {visibleCategories.map((category) => (
+                    <label key={category.id} className={`cursor-pointer rounded-xl border px-3 py-3 text-sm font-semibold transition-colors ${String(formData.property_category_ids) === String(category.id) ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'}`}>
+                      <input type="radio" name="property_category_ids" value={category.id} checked={String(formData.property_category_ids) === String(category.id)} onChange={(event) => handleSelect(event, 'property_category_ids')} className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500" required />
                       {category.name}
-                    </option>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
-              {!isRental && (
-                <div>
+              <div>
                   <label className={labelClass}>Property Type <span className="text-red-500">*</span></label>
                   <select
                     value={formData.property_type_ids}
                     onChange={(event) => handleSelect(event, 'property_type_ids')}
                     className={inputClass}
+                    disabled={!formData.property_category_ids}
                     required
                   >
-                    <option value="">{listsLoading ? 'Loading types...' : 'Select type'}</option>
-                    {propertyTypes.map((type) => (
+                    <option value="">{!formData.property_category_ids ? 'Select category first' : listsLoading ? 'Loading types...' : 'Select type'}</option>
+                    {visiblePropertyTypes.map((type) => (
                       <option key={type.id} value={type.id}>
                         {type.name}
                       </option>
                     ))}
                   </select>
-                </div>
-              )}
+              </div>
             </div>,
             'Classification controls which pricing and specification fields appear next.'
           )}
@@ -772,9 +845,11 @@ export default function CreateProperty({ onSuccess, onCancel }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {isPlotType && renderTextInput('per_cent', 'Per Cent', { type: 'number', min: '0' })}
               {isPlotType && renderTextInput('total_cent', 'Total Cent', { type: 'number', min: '0' })}
-              {!isRental && isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
-              {!isRental && !isPlotType && !isBuildingType && renderTextInput('total_cent', 'Total Cent', { type: 'number', min: '0' })}
-              {renderTextInput('amount', isRental ? 'Amount Per Month' : 'Amount', { type: 'number', min: '0', required: true })}
+              {isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
+              {!isPlotType && !isBuildingType && renderTextInput('total_cent', 'Total Cent', { type: 'number', min: '0' })}
+              {renderTextInput('amount', isRental ? 'Monthly Rent' : isLease ? 'Lease Amount' : 'Sale Price', { type: 'number', min: '0', required: true })}
+              {(isRental || isLease) && renderTextInput('security_deposit', 'Security Deposit', { type: 'number', min: '0' })}
+              {isLease && renderTextInput('lease_duration', 'Lease Duration', { required: true, placeholder: 'e.g. 3 years' })}
             </div>,
             isPlotType ? 'For plots, amount is calculated from per cent and total cent when both values are entered.' : 'Add the size and final listing amount.'
           )}
@@ -783,15 +858,17 @@ export default function CreateProperty({ onSuccess, onCancel }) {
             renderSection(
               'Property Specifications',
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {!isRental && renderTextInput('bhk', 'BHK', { type: 'number', min: '0' })}
+                {renderTextInput('bhk', 'BHK', { type: 'number', min: '0' })}
                 {renderTextInput('no_of_bedrooms', 'Bedrooms', { type: 'number', min: '0' })}
                 {renderTextInput('no_of_bathrooms', 'Bathrooms', { type: 'number', min: '0' })}
                 {renderTextInput('no_of_kitchen', 'Kitchen', { type: 'number', min: '0' })}
                 {renderTextInput('no_of_halls', 'Halls', { type: 'number', min: '0' })}
-                {!isRental && !isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
+                {!isBuildingType && renderTextInput('sq_feet', 'Sq Feet', { type: 'number', min: '0' })}
               </div>,
               'Optional room and layout details for built properties.'
             )}
+
+          {locationMapSection}
 
           {renderSection(
             'Features & Facilities',
